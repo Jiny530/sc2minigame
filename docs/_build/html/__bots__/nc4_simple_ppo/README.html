@@ -1,0 +1,246 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="ko" >
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>예제 4. Simple PPO &mdash; sc2minigame  문서</title>
+  
+
+  
+  <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+
+  
+  
+  
+  
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/underscore.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/language_data.js"></script>
+        <script src="../../_static/translations.js"></script>
+    
+    <script type="text/javascript" src="../../_static/js/theme.js"></script>
+
+    
+    <link rel="index" title="색인" href="../../genindex.html" />
+    <link rel="search" title="검색" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="../../index.html" class="icon icon-home" alt="Documentation Home"> sc2minigame
+          
+
+          
+            
+            <img src="../../_static/NC CI_window to the future2-white.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                20-07-06
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">환경설정 및 기본 예제</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../README.html">시작하기</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../docs/intro.html">시스템 구조 및 게임 규칙</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../bots/nc0_dummy/README.html">예제 0. Dummy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../bots/nc1_simple/README.html">예제 1. Simple: 간단한 build-order</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../bots/nc2_simple2/README.html">예제 2. Simple 2: 적응형 build-order</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../bots/nc3_simple3/README.html">예제 3. Simple 3: 집결지</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../bots/nc4_simple_ppo/README.html">예제 4. Simple PPO: 분산학습 예</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../evaluator/README.html">토너먼트 시스템 및 제출 방식</a></li>
+</ul>
+
+            
+          
+        </div>
+        
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">sc2minigame</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="../../index.html" class="icon icon-home"></a> &raquo;</li>
+        
+      <li>예제 4. Simple PPO</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="../../_sources/__bots__/nc4_simple_ppo/README.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="simple-ppo">
+<h1>예제 4. Simple PPO<a class="headerlink" href="#simple-ppo" title="제목 주소">¶</a></h1>
+<p>sc2minigame에서 가장 중요한 의사결정 사항 두 가지는 다음에 어떤 유닛을 생산해야하는지, 언제 공격해야 하는지 두 가지 이다.
+Simple, Simple2, 그리고 Simple3는 이 두 가지 문제를 해결할 수 있는 간단한 AI를 구현한 예이다.
+Simple3는 Simple이나 Simple2에 비해 성능이 향상되었지만, 규칙을 수정해서 성능을 향상시킬 수 있는 여지가 충분히 있다.
+유닛의 생산 비율을 조정하거나, 공격시점을 결정하는 규칙을 수정하는 것만으로도 승률을 높일 수 있다.
+그러나, 규칙을 수정하고 평가하는 과정을 반복하는 것은 매우 번거로운 작업이고
+일정 수준이상의 성능에 도달하기 위해서는 보다 체계적이고 자동화된 방법이 필요하다.
+Simple PPO는 공격시점을 결정하는 규칙을 강화학습(RL, Reinforcement Learning) 알고리즘 중 하나인
+PPO (Proximal Policy Optimization)를 사용해 개선하는 예를 보여준다.</p>
+<div class="section" id="id1">
+<h2>학습 실행<a class="headerlink" href="#id1" title="제목 주소">¶</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Trainer 실행</span>
+<span class="o">(</span>sc2<span class="o">)</span> ~/NCF2020 $ python -m python -m bots.nc4_simple_ppo.train
+</pre></div>
+</div>
+<p>학습 코드를 실행하려면 우선 Traniner process를 실행시킨다.
+Trainer가 성공적으로 실행되면 《READY》 메시지가 출력된 채로 대기 한다.
+Traniner는 학습 알고리즘을 실행하기만 하고, 게임을 플레이해서 데이터를 생성하지 않는다.
+게임을 플레이해서 데이터를 생성하는 역할을하는 Actor process를 추가로 실행해야 한다.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Actor 실행</span>
+<span class="o">(</span>sc2<span class="o">)</span> ~/NCF2020 $ python -m python -m bots.nc4_simple_ppo.train --attach<span class="o">={</span>trainer-ip<span class="o">}</span> --n_actors<span class="o">=</span><span class="m">2</span>
+</pre></div>
+</div>
+<p>Actor는 Trainer와 비슷하게 실행하지만, Actor가 접속할 Trainer의 IP 주소를 argument로 같이 입력하면,
+Actor모드로 실행된다.
+여러 Actor가 한 Trainer에 접속해서 학습을 수행할 수 있고, 많은 Actor가 접속할 수록 학습 속도를 향상시킬 수 있다.
+실질적으로는 학습에 참가한 PC 사양에 따라 네트워크(LAN), CPU, GPU등에서 심각한 병목이 발생하여
+무한히 학습 속도를 향상시키는 것은 어렵지만, 일반적인 데스크톱 PC에서는 PC 10대 정도 까지는 문제없이 성능이 향상된다.</p>
+<p>tensorboard 출력결과는 runs 폴더에 저장되고, 학습한 인공신경망 모델은 bots/nc4_simple_ppo/model.pt 파일로 저장된다.</p>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        
+        &copy; 저작권 2020, Game AI Lab, NCSOFT
+
+    </p>
+  </div>
+    
+    
+    
+    Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a
+    
+    <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a>
+    
+    provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>

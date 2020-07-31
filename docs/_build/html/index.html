@@ -1,0 +1,261 @@
+
+
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js lt-ie9" lang="ko" > <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" lang="ko" > <!--<![endif]-->
+<head>
+  <meta charset="utf-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <title>sc2minigame 튜토리얼 &mdash; sc2minigame  문서</title>
+  
+
+  
+  
+  
+  
+
+  
+  <script type="text/javascript" src="_static/js/modernizr.min.js"></script>
+  
+    
+      <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/language_data.js"></script>
+        <script src="_static/translations.js"></script>
+    
+    <script type="text/javascript" src="_static/js/theme.js"></script>
+
+    
+
+  
+  <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <link rel="index" title="색인" href="genindex.html" />
+    <link rel="search" title="검색" href="search.html" />
+    <link rel="next" title="시작하기" href="README.html" /> 
+</head>
+
+<body class="wy-body-for-nav">
+
+   
+  <div class="wy-grid-for-nav">
+    
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+          
+
+          
+            <a href="#" class="icon icon-home"> sc2minigame
+          
+
+          
+            
+            <img src="_static/NC CI_window to the future2-white.png" class="logo" alt="Logo"/>
+          
+          </a>
+
+          
+            
+            
+              <div class="version">
+                20-07-10
+              </div>
+            
+          
+
+          
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+
+          
+        </div>
+
+        <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="main navigation">
+          
+            
+            
+              
+            
+            
+              <p class="caption"><span class="caption-text">환경설정 및 기본 예제</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="README.html">시작하기</a></li>
+<li class="toctree-l1"><a class="reference internal" href="docs/system_and_rules.html">시스템 구조 및 게임 규칙</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bots/nc0_dummy/README.html">예제 0. Dummy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bots/nc1_simple/README.html">예제 1. Simple: 간단한 build-order</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bots/nc2_simple2/README.html">예제 2. Simple 2: 적응형 build-order</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bots/nc3_simple3/README.html">예제 3. Simple 3: 집결지</a></li>
+<li class="toctree-l1"><a class="reference internal" href="bots/nc4_simple_ppo/README.html">예제 4. Simple PPO: 분산학습 예</a></li>
+<li class="toctree-l1"><a class="reference internal" href="eval/README.html">평가 시스템 및 제출 방식</a></li>
+</ul>
+
+            
+          
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+
+      
+      <nav class="wy-nav-top" aria-label="top navigation">
+        
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="#">sc2minigame</a>
+        
+      </nav>
+
+
+      <div class="wy-nav-content">
+        
+        <div class="rst-content">
+        
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<div role="navigation" aria-label="breadcrumbs navigation">
+
+  <ul class="wy-breadcrumbs">
+    
+      <li><a href="#">Docs</a> &raquo;</li>
+        
+      <li>sc2minigame 튜토리얼</li>
+    
+    
+      <li class="wy-breadcrumbs-aside">
+        
+            
+            <a href="_sources/index.rst.txt" rel="nofollow"> View page source</a>
+          
+        
+      </li>
+    
+  </ul>
+
+  
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+            
+  <div class="section" id="sc2minigame">
+<h1>sc2minigame 튜토리얼<a class="headerlink" href="#sc2minigame" title="제목 주소">¶</a></h1>
+<div class="admonition note">
+<p class="admonition-title">참고</p>
+<ul class="simple">
+<li><p>현재 이 문서는 2020년 NCFellowship을 위해 준비된 플랫폼과 경진대회에 대한
+내용을 포함하고 있음</p></li>
+<li><p>경진대회 플랫폼은 Blizzard™의 StarCraft 2 <a class="footnote-reference brackets" href="#sc2" id="id1">1</a>, s2client-api <a class="footnote-reference brackets" href="#sc2api" id="id2">2</a>
+그리고 Hannes Karppila의 python-sc2 <a class="footnote-reference brackets" href="#python-sc2" id="id3">3</a> 를 기반으로 하고 있음</p></li>
+</ul>
+</div>
+<div class="section" id="id4">
+<h2>환경설정 및 기본 예제<a class="headerlink" href="#id4" title="제목 주소">¶</a></h2>
+<p>여기서는 이 플랫폼과 경진대회 환경에 대한 소개를 하고, 기본적인 AI 구현 예제를 소개한다.
+마지막에는 구현한 AI를 제출하는 방법에 대해 설명한다.</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="README.html"><span class="doc">시작하기</span></a></p></li>
+<li><p><a class="reference internal" href="docs/system_and_rules.html"><span class="doc">시스템 구조 및 게임 규칙</span></a></p></li>
+<li><p><a class="reference internal" href="bots/nc0_dummy/README.html"><span class="doc">예제 0. Dummy</span></a></p></li>
+<li><p><a class="reference internal" href="bots/nc1_simple/README.html"><span class="doc">예제 1. Simple: 간단한 build-order</span></a></p></li>
+<li><p><a class="reference internal" href="bots/nc2_simple2/README.html"><span class="doc">예제 2. Simple 2: 적응형 build-order</span></a></p></li>
+<li><p><a class="reference internal" href="bots/nc3_simple3/README.html"><span class="doc">예제 3. Simple 3: 집결지</span></a></p></li>
+<li><p><a class="reference internal" href="bots/nc4_simple_ppo/README.html"><span class="doc">예제 4. Simple PPO: 강화학습 예</span></a></p></li>
+<li><p><a class="reference internal" href="eval/README.html"><span class="doc">평가 시스템 및 제출 방식</span></a></p></li>
+</ul>
+<div class="toctree-wrapper compound">
+</div>
+</div>
+<div class="section" id="id5">
+<h2>인덱스<a class="headerlink" href="#id5" title="제목 주소">¶</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">색인</span></a></p></li>
+<li><p><a class="reference internal" href="py-modindex.html"><span class="std std-ref">모듈 목록</span></a></p></li>
+<li><p><a class="reference internal" href="search.html"><span class="std std-ref">검색 페이지</span></a></p></li>
+</ul>
+<p class="rubric">Footnotes</p>
+<dl class="footnote brackets">
+<dt class="label" id="sc2"><span class="brackets"><a class="fn-backref" href="#id1">1</a></span></dt>
+<dd><p>StarCraft는 미국 및 다른 국가에서 Blizzard Entertainment Inc. 의 상표 또는 등록상표 입니다.</p>
+</dd>
+<dt class="label" id="sc2api"><span class="brackets"><a class="fn-backref" href="#id2">2</a></span></dt>
+<dd><p><a class="reference external" href="https://github.com/Blizzard/s2client-api">https://github.com/Blizzard/s2client-api</a></p>
+</dd>
+<dt class="label" id="python-sc2"><span class="brackets"><a class="fn-backref" href="#id3">3</a></span></dt>
+<dd><p><a class="reference external" href="https://github.com/Dentosal/python-sc2">https://github.com/Dentosal/python-sc2</a></p>
+</dd>
+</dl>
+</div>
+</div>
+
+
+           </div>
+           
+          </div>
+          <footer>
+  
+    <div class="rst-footer-buttons" role="navigation" aria-label="footer navigation">
+      
+        <a href="README.html" class="btn btn-neutral float-right" title="시작하기" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right"></span></a>
+      
+      
+    </div>
+  
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>
+        &copy; Copyright 2020, Game AI Lab, NCSOFT
+
+    </p>
+  </div>
+  Built with <a href="http://sphinx-doc.org/">Sphinx</a> using a <a href="https://github.com/rtfd/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>. 
+
+</footer>
+
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+  
+
+
+  <script type="text/javascript">
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script>
+
+  
+  
+    
+   
+
+</body>
+</html>
