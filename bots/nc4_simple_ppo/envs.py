@@ -1,3 +1,9 @@
+## play_game에서 에러가 나서 수정함(윈도우에서만 나는 에러인듯)
+## 수정한 부분은 ##<-으로 표시해둠, 쉽게 찾으려면 컨+F로 play_game이나 ##검색
+## train 잘 하다가 zmq.error.Again: Resource temporarily unavailable이라는 에러 뜸
+## 위 에러는 n_actors=1로 하면 안뜸 너무 많이 돌려서 그런가?
+## 그리고 컨+C로 종료시에 IPython 콘솔도 안뜨는 듯...?
+
 #
 #  비동기 Environ와 Actor
 #
@@ -117,34 +123,9 @@ class Environment:
     def set_task(self, task_dict):
         self.sock.send_multipart([pickle.dumps(task_dict)])
 
-class Actor:
-    def __init__(self, args):
-        self.args = args
-
-    def run(self, _id: int, verbose: bool=False, timeout: int=60000, n_games: int=100):
-        # hostname = f"{socket.gethostname()}_{time.ctime().replace(' ', '-')}"
-        hostname = f"{socket.gethostname()}_{_id}_{time.time()}"
-        address = f"tcp://{self.args.attach}:{self.args.frontend_port}"
-        context = zmq.Context()
-        error_sock = context.socket(zmq.REQ)
-        error_sock.connect(address)
-
-        while True:
-            try: 
-                # alive_event:
-                # 게임이 인스턴스 재시작 없이 재시작 할 때마다 set
-                # 게임이 정상적으로 재시작하고 있다는 의미
-                alive_event = mp.Event()
-                # req_kill_event:
-                # 게임 프로세스 내부에서 외부에 재시작을 요청할 때 set
-                # n_games 만큼 게임을 플레이 한 뒤에 set해서 
-                # 게임 프로세스 내부에 문제로 인해 프로세스 종료가 안되더라도, 
-                # 외부에서 강제로 종료할 수 있도록 event 전달
-                req_kill_event = mp.Event()
-                # 
-                exc_queue = mp.Queue()
-
-                def play_game(hostname, address, n_games, alive_event, req_kill_event, exc_queue):
+##play_game을 Actor 밖으로 뺌
+##timeout과 actor를 인자로 추가함
+def play_game(hostname, address, n_games, alive_event, req_kill_event, exc_queue, timeout, actor):
                     # n_games:
                     # 게임 인스턴스를 한번 실행해서 연속으로 몇 번이나 게임을 실행할 것인가?
                     # - 너무 작으면, 게임 인스턴스를 자주 재시작해야하기 때문에 속도가 느려짐
@@ -164,7 +145,8 @@ class Actor:
 
                     # task_dict & players:
                     # 게임 세팅 관련변수, # host와 join이 동일한 reference를 가지고 있어야 함
-                    task_dict = dict(step_interval=self.args.step_interval)
+                    #task_dict = dict(step_interval=self.args.step_interval)
+                    task_dict = dict(step_interval=actor.args.step_interval)
                     players = [None, None]
 
                     asyncio.get_event_loop().run_until_complete(asyncio.gather(
@@ -194,20 +176,51 @@ class Actor:
                         )
                     ))
 
+class Actor:
+    def __init__(self, args):
+        self.args = args
+
+    def run(self, _id: int, verbose: bool=False, timeout: int=60000, n_games: int=100):
+        # hostname = f"{socket.gethostname()}_{time.ctime().replace(' ', '-')}"
+        hostname = f"{socket.gethostname()}_{_id}_{time.time()}"
+        address = f"tcp://{self.args.attach}:{self.args.frontend_port}"
+        context = zmq.Context()
+        error_sock = context.socket(zmq.REQ)
+        error_sock.connect(address)
+
+        while True:
+            try: 
+                # alive_event:
+                # 게임이 인스턴스 재시작 없이 재시작 할 때마다 set
+                # 게임이 정상적으로 재시작하고 있다는 의미
+                alive_event = mp.Event()
+                # req_kill_event:
+                # 게임 프로세스 내부에서 외부에 재시작을 요청할 때 set
+                # n_games 만큼 게임을 플레이 한 뒤에 set해서 
+                # 게임 프로세스 내부에 문제로 인해 프로세스 종료가 안되더라도, 
+                # 외부에서 강제로 종료할 수 있도록 event 전달
+                req_kill_event = mp.Event()
+                # 
+                exc_queue = mp.Queue()
+
+                ##play_game이 정의되어 있던 자리
+
                 if self.args.game_timeout < 0:
                     # 테스트 용:
                     # play_game 기능 테스트할 때, 최대 게임시간을 음수로 설정하면,
                     # play_game 함수 직접 실행
-                    play_game(hostname, address, n_games, alive_event, req_kill_event, exc_queue)
+                    ## args 인자에 timeout과 self 추가
+                    play_game(hostname, address, n_games, alive_event, req_kill_event, exc_queue, timeout, self)
 
                 else:
                     # 일반적인 상황에서는 play_game을 자식 프로세스로 실행
                     # 자식 프로세스 내부에서 종료를 요청(req_kill_event)하거나,
                     # 현재 프로세스에서 제한시간마다 게임이 새로 시작하는지 검사해서,
                     # 게임이 새로 시작하지 않으면(alive_event), 자식프로세스 재시작
+                    ## args 인자에 timeout과 self 추가
                     game_play_proc = mp.Process(
                         target=play_game, 
-                        args=(hostname, address, n_games, alive_event, req_kill_event, exc_queue),
+                        args=(hostname, address, n_games, alive_event, req_kill_event, exc_queue, timeout, self),
                         daemon=False,
                     )
                     game_play_proc.start()
