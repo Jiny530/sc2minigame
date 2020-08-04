@@ -58,7 +58,7 @@ class Bot(sc2.BotAI):
         ccs = ccs.idle  # 실행중인 명령이 없는 사령부 검색
         if ccs.exists:  # 사령부가 하나이상 존재할 경우
             cc = ccs.first  # 첫번째 사령부 선택
-            if self.can_afford(self.build_order[0]) and self.time - self.evoked.get((cc.tag, 'train'), 0) > 1.0:
+            if len(self.build_order) >= 1 and self.can_afford(self.build_order[0]) and self.time - self.evoked.get((cc.tag, 'train'), 0) > 1.0:
                 # 해당 유닛 생산 가능하고, 마지막 명령을 발행한지 1초 이상 지났음
                 actions.append(cc.train(self.build_order[0]))  # 첫 번째 유닛 생산 명령 
                 del self.build_order[0]  # 빌드오더에서 첫 번째 유닛 제거
