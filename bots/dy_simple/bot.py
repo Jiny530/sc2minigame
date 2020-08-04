@@ -82,7 +82,8 @@ class Bot(sc2.BotAI):
         for unit in self.units.not_structure:  # 건물이 아닌 유닛만 선택
             enemy_unit = self.enemy_start_locations[0]
             if self.known_enemy_units.exists:
-                enemy_unit = self.known_enemy_units.health_least(self.known_enemy_units) #가장 체력이 적은 유닛???
+                enemy_units = self.known_enemy_units.sorted(keyfn=lambda unit: unit.health)
+                enemy_unit = enemy_units[0] #가장 체력이 적은 유닛???
                 #print(enemy_unit.health)
                 #enemy_unit = self.known_enemy_units.closest_to(unit)  # 가장 가까운 적 유닛
 
