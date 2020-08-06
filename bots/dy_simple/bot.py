@@ -79,43 +79,41 @@ class Bot(sc2.BotAI):
         #
         # 유닛 명령 생성
         #
+        enemy_selected = None
         for unit in self.units.not_structure:  # 건물이 아닌 유닛만 선택
             enemy_unit = self.enemy_start_locations[0]
             if self.known_enemy_units.exists:
-                enemy_units = self.known_enemy_units.sorted(keyfn=lambda unit: unit.health)
-                enemy_unit = enemy_units[0] #가장 체력이 적은 유닛???
+                #enemy_units = self.known_enemy_units.sorted(keyfn=lambda unit: unit.health, reverse=True)
+                #enemy_unit = enemy_units[0] #가장 체력이 적은 유닛???
                 #print(enemy_unit.health)
-                #enemy_unit = self.known_enemy_units.closest_to(unit)  # 가장 가까운 적 유닛
+                enemy_unit = self.known_enemy_units.closest_to(unit)  # 가장 가까운 적 유닛
+                enemy_selected = enemy_unit
+                break
+        #누군가 가장 가까운 적 유닛을 목표로 하고 있다면 그걸 따라서 때림
+        for unit in self.units.not_structure:      
+            if enemy_selected:
+                enemy_unit=enemy_selected
+            #print(enemy_unit)
+        #print("-----------------")    
 
             # 적 사령부와 가장 가까운 적 유닛중 더 가까운 것을 목표로 설정
+        for unit in self.units.not_structure:    
             if unit.distance_to(enemy_cc) < unit.distance_to(enemy_unit):
                 target = enemy_cc
             else:
                 target = enemy_unit
 
-            """
-            for unit in self.units.not_structure:
-                near_unit = self.start_location
-                if self.known_own_units.exists:
-                    near_unit = self.known_own_units.closest_to(unit)  # 가장 가까운 아군 유닛
-                    """
-            """ 
-            if near_unit.is_attacking: # 가까운 공격중인 아군 유닛이 있다면 아군 유닛의 타깃을 목표로 설정
-                    target=near_unit.order_target
-            else:
-                # 적 사령부와 가장 가까운 적 유닛중 더 가까운 것을 목표로 설정
-                if unit.distance_to(enemy_cc) < unit.distance_to(enemy_unit):
-                    target = enemy_cc
-                else:
-                    target = enemy_unit
-            """
-
             if unit.type_id is not UnitTypeId.MEDIVAC:
                 #print(combat_units.amount)
-                if combat_units.amount > 15:
+                if combat_units.amount > 15: 
                     # 전투가능한 유닛 수가 15을 넘으면 적 본진으로 공격
                     actions.append(unit.attack(target))
                     use_stimpack = True
+                elif combat_units.amount > 10 and unit.position <= self.start_location + 0.5 * (enemy_cc.position - self.start_location) and self.known_enemy_units.amount < 5:
+                    #아군이 10명 이상, 보이는 적이 5명 이하고, 아군의 현재 위차가 맵의 절반 이상이라면 공격
+                    actions.append(unit.attack(target))
+                    use_stimpack = True
+                    #print("call")
                 else:
                     # 적 사령부 방향에 유닛 집결
                     target = self.start_location + 0.25 * (enemy_cc.position - self.start_location)
