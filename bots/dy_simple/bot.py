@@ -26,17 +26,17 @@ class Bot(sc2.BotAI):
         self.target_unit_counts = {
             UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
             UnitTypeId.MARINE: 25,
-            UnitTypeId.MARAUDER: 2,
+            UnitTypeId.MARAUDER: 15,
             UnitTypeId.REAPER: 0,
-            UnitTypeId.GHOST: 1,
-            UnitTypeId.HELLION: 10,
-            UnitTypeId.SIEGETANK: 1,
-            UnitTypeId.THOR: 1,
-            UnitTypeId.MEDIVAC: 1,
-            UnitTypeId.VIKINGFIGHTER: 1,
-            UnitTypeId.BANSHEE: 1,
+            UnitTypeId.GHOST: 0,
+            UnitTypeId.HELLION: 0,
+            UnitTypeId.SIEGETANK: 0,
+            UnitTypeId.THOR: 0,
+            UnitTypeId.MEDIVAC: 3,
+            UnitTypeId.VIKINGFIGHTER: 0,
+            UnitTypeId.BANSHEE: 0,
             UnitTypeId.RAVEN: 0,
-            UnitTypeId.BATTLECRUISER: 1,
+            UnitTypeId.BATTLECRUISER: 0,
         }
         self.evoked = dict()
 
@@ -79,41 +79,42 @@ class Bot(sc2.BotAI):
         #
         # 유닛 명령 생성
         #
-        enemy_selected = None
         for unit in self.units.not_structure:  # 건물이 아닌 유닛만 선택
             enemy_unit = self.enemy_start_locations[0]
             if self.known_enemy_units.exists:
-                #enemy_units = self.known_enemy_units.sorted(keyfn=lambda unit: unit.health, reverse=True)
-                #enemy_unit = enemy_units[0] #가장 체력이 적은 유닛???
+                #enemy_unit = self.known_enemy_units.health_least() #가장 체력이 적은 유닛???
                 #print(enemy_unit.health)
                 enemy_unit = self.known_enemy_units.closest_to(unit)  # 가장 가까운 적 유닛
-                enemy_selected = enemy_unit
-                break
-        #누군가 가장 가까운 적 유닛을 목표로 하고 있다면 그걸 따라서 때림
-        for unit in self.units.not_structure:      
-            if enemy_selected:
-                enemy_unit=enemy_selected
-            #print(enemy_unit)
-        #print("-----------------")    
 
             # 적 사령부와 가장 가까운 적 유닛중 더 가까운 것을 목표로 설정
-        for unit in self.units.not_structure:    
             if unit.distance_to(enemy_cc) < unit.distance_to(enemy_unit):
                 target = enemy_cc
             else:
                 target = enemy_unit
 
+            """
+            for unit in self.units.not_structure:
+                near_unit = self.start_location
+                if self.known_own_units.exists:
+                    near_unit = self.known_own_units.closest_to(unit)  # 가장 가까운 아군 유닛
+                    """
+            """ 
+            if near_unit.is_attacking: # 가까운 공격중인 아군 유닛이 있다면 아군 유닛의 타깃을 목표로 설정
+                    target=near_unit.order_target
+            else:
+                # 적 사령부와 가장 가까운 적 유닛중 더 가까운 것을 목표로 설정
+                if unit.distance_to(enemy_cc) < unit.distance_to(enemy_unit):
+                    target = enemy_cc
+                else:
+                    target = enemy_unit
+            """
+
             if unit.type_id is not UnitTypeId.MEDIVAC:
                 #print(combat_units.amount)
-                if combat_units.amount > 15: 
+                if combat_units.amount > 15:
                     # 전투가능한 유닛 수가 15을 넘으면 적 본진으로 공격
                     actions.append(unit.attack(target))
                     use_stimpack = True
-                elif combat_units.amount > 10 and unit.position <= self.start_location + 0.5 * (enemy_cc.position - self.start_location) and self.known_enemy_units.amount < 5:
-                    #아군이 10명 이상, 보이는 적이 5명 이하고, 아군의 현재 위차가 맵의 절반 이상이라면 공격
-                    actions.append(unit.attack(target))
-                    use_stimpack = True
-                    #print("call")
                 else:
                     # 적 사령부 방향에 유닛 집결
                     target = self.start_location + 0.25 * (enemy_cc.position - self.start_location)
@@ -134,9 +135,41 @@ class Bot(sc2.BotAI):
                 if wounded_units.exists:
                     wounded_unit = wounded_units.closest_to(unit)  # 가장 가까운 체력이 100% 이하인 유닛
                     actions.append(unit(AbilityId.MEDIVACHEAL_HEAL, wounded_unit))  # 유닛 치료 명령
+                    #print(wounded_unit.name, "을 회복중")
                 else:
                     # 회복시킬 유닛이 없으면, 전투 그룹 중앙에서 대기
                     actions.append(unit.move(combat_units.center))
 
+                    ##아군 유닛이 공격중이 아니면 유닛 들이기(탑승)
+                    ##내린지 1초가 지났고 근처 유닛들이 스팀팩 사용중이면(돌격준비가 되면)내리기
+                    '''가장 가까운 유닛이 공격중인가를 기준으로 행동해서
+                    탑승했던 유닛이 내리면 해당 유닛이 기준으로 변경됨
+                    여기서 계속 태웠다가 내렸다가를 반복하는 것 같음'''
+                    
+                    '''명령을 내리고 실행까지 await로 기다리는 방식도 고려해봐야
+                    if(유닛 몇개 이상이면):  
+                        for i in self.units(combat_units).idle:  
+                            await self.do(i.attack(target)) 꼴'''       
+                    combat_unit = combat_units.closest_to(unit)
+                    if self.time - self.evoked.get((unit.tag, AbilityId.LOAD_MEDIVAC), 0) > 1.0:
+                        if not combat_unit.is_attacking:
+                            actions.append(unit(AbilityId.LOAD_MEDIVAC, combat_unit))
+                            self.evoked[(unit.tag, AbilityId.LOAD_MEDIVAC)] = self.time
+                            print(combat_unit.name," (공격중:",combat_unit.is_attacking,") 탑승")
+                    elif self.time - self.evoked.get((unit.tag, AbilityId.UNLOADALLAT_MEDIVAC), 0) > 1.0:
+                        if combat_unit.has_buff(BuffId.STIMPACK):
+                            actions.append(unit(AbilityId.UNLOADALLAT_MEDIVAC, unit.position))
+                            self.evoked[(unit.tag, AbilityId.UNLOADALLAT_MEDIVAC)] = self.time
+                            print("내림, 위치: ", unit.position)
+                            print("남은자리:",unit.cargo_left,", 탑승중인 유닛 있는가?:",unit.has_cargo)
+
+
+
         await self.do_actions(actions)
+        for a in actions:
+            if a.ability == "LOAD_MEDIVAC":
+                print("태우기: ", actions) ##출력안됨
+        for a in actions:
+            if a.ability == "UNLOADALLAT_MEDIVAC":
+                print("내리기: ", actions) ##출력안됨
 
