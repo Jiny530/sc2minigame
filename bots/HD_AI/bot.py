@@ -100,37 +100,6 @@ class ReconManager(object):
                     actions.append(order)
         return actions
 
-class StepManager(object):
-    """
-    스텝 레이트 유지를 담당하는 매니저
-    """
-    def __init__(self, bot_ai):
-        self.bot = bot_ai
-        self.seconds_per_step = 0.35714  # on_step이 호출되는 주기
-        self.reset()
-    
-    def reset(self):
-        self.step = -1
-        # 마지막으로 on_step이 호출된 게임 시간
-        self.last_game_time_step_evoked = 0.0 
-
-    def invalid_step(self):
-        """
-        너무 빠르게 on_step이 호출되지 않았는지 검사
-        """
-        elapsed_time = self.bot.time - self.last_game_time_step_evoked
-        if elapsed_time < self.seconds_per_step:
-            return True
-        else:
-            # print(C.blue(f'man_step_time: {elapsed_time}'))
-            self.step += 1
-            self.last_game_time_step_evoked = self.bot.time
- 
-
-
-
-
-
 class Combat_Team_Manager(object):
     """
     일반 전투 부대 컨트롤(공격+수비)
@@ -225,12 +194,40 @@ class Combat_Team_Manager(object):
         return actions
 
 
+
+class StepManager(object):
+    """
+    스텝 레이트 유지를 담당하는 매니저
+    """
+    def __init__(self, bot_ai):
+        self.bot = bot_ai
+        self.seconds_per_step = 0.35714  # on_step이 호출되는 주기
+        self.reset()
+    
+    def reset(self):
+        self.step = -1
+        # 마지막으로 on_step이 호출된 게임 시간
+        self.last_game_time_step_evoked = 0.0 
+
+    def invalid_step(self):
+        """
+        너무 빠르게 on_step이 호출되지 않았는지 검사
+        """
+        elapsed_time = self.bot.time - self.last_game_time_step_evoked
+        if elapsed_time < self.seconds_per_step:
+            return True
+        else:
+            # print(C.blue(f'man_step_time: {elapsed_time}'))
+            self.step += 1
+            self.last_game_time_step_evoked = self.bot.time
+            return False
+
+
 class Tactics(Enum):
-    ATTACK=0
-    DEFENSE=1
+    ATTACK = 0
+    DEFENSE = 1
     NUKE=2
     RECON=3
-
 
 
 class RatioManager(object):
@@ -280,8 +277,8 @@ class RatioManager(object):
                 UnitTypeId.BATTLECRUISER: 0,
             }
             self.evoked = dict()
-        
-        if self.bot.tactics == Tactics.RECON:
+            
+        elif self.bot.tactics == Tactics.RECON:
             self.target_unit_counts = {
                 UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
                 UnitTypeId.MARINE: 10,
@@ -298,6 +295,7 @@ class RatioManager(object):
                 UnitTypeId.BATTLECRUISER: 0,
             }
             self.evoked = dict()
+
 
 
         # -----부족한 유닛 숫자 계산-----
@@ -329,13 +327,21 @@ class AssignManager(object):
 
     def assign(self, manager):
 
-        units = self.bot.units
 
-        if manager is Combat_Team_Manager:
-            units = self.bot.units.of_type(ARMY_TYPES).owned
-            unit_tags = units.tags
+        units_tag = self.bot.units.tags #전체유닛
+        
+        #tactic이 combat이면 combatarray에 주고 나머지엔 combat에서 쓰는게 제외하고 할당 가능?ㅇㅇ
+        units_tag = units_tag - self.bot.combatArray - self.bot.reconArray - self.bot.nukeArray
+        
+        if self.bot.tactics == Tactics.ATTACK or  self.bot.tactics == Tactics.DEFENSE:
+            self.bot.combatArray = self.bot.combatArray | units_tag
+        elif self.bot.tactics == Tactics.RECON:
+            self.bot.reconArray = self.bot.reconArray | units_tag
+        elif self.bot.tactics == Tactics.NUKE:
+            self.bot.nukeArray = self.bot.nukeArray | units_tag
 
 # 사령부 주변에 적 없고 사령부 피 2/3 남았을때 지게로봇 소환
+
 
 class Bot(sc2.BotAI):
     """
@@ -345,8 +351,6 @@ class Bot(sc2.BotAI):
     def __init__(self, *args, **kwargs):
         super().__init__()
         self.step_manager = StepManager(self)
-        #self.attack_team_manager = Attack_Team_Manager(self)
-        #self.defense_team_manager = Defense_Team_Manager(self)
         self.combat_team_manager = Combat_Team_Manager(self)
         self.assign_manager = AssignManager(self)
         self.tactics = Tactics.ATTACK #Tactic은 ATTACK으로 초기화
@@ -354,17 +358,25 @@ class Bot(sc2.BotAI):
         self.nuke_manager = NukeManager(self)
         self.ratio_manager = RatioManager(self)
 
+        #부대별 유닛 array
+        self.combatArray = set()
+        self.reconArray = set()
+        self.nukeArray = set()
+        
+
+
     def on_start(self):
         """
         새로운 게임마다 초기화
         """
         self.step_manager.reset()
-        #self.attack_team_manager.reset()
-        #self.defense_team_manager.reset()
+
         self.combat_team_manager.reset()
         self.assign_manager.reset()
 
-        #self.assign_manager.assign(self.attack_team_manager) #처음 유닛 할당은 공격 부대부터
+        self.combat_team_manager.reset()
+        self.assign_manager.reset()
+
         self.assign_manager.assign(self.combat_team_manager)
 
         self.tatics = Tactics.ATTACK #초기 tactic은 ATTACK으로 초기화
@@ -385,8 +397,6 @@ class Bot(sc2.BotAI):
         ccs = self.units(UnitTypeId.COMMANDCENTER).idle  # 전체 유닛에서 사령부 검색
 
         if self.step_manager.step % 2 == 0:
-            self.assign_manager.assign(self.combat_team_manager)
-            
             # -----사령부 명령 생성-----
             if ccs.exists:  # 사령부가 하나이상 존재할 경우
                 cc = ccs.first  # 첫번째 사령부 선택
@@ -395,17 +405,28 @@ class Bot(sc2.BotAI):
                     # 해당 유닛 생산 가능하고, 마지막 명령을 발행한지 1초 이상 지났음
                     actions.append(cc.train(next_unit))
                     self.ratio_manager.evoked[(cc.tag, 'train')] = self.time
+                    self.assign_manager.assign(self.combat_team_manager)
         
         # -----전략 변경 -----
         if self.step_manager.step % 30 == 0:
             i = randint(0, 3) #일단 랜덤으로 변경
             self.tactics = Tactics(i)
-
-
-        #actions += await self.attack_team_manager.step()
-        #actions += await self.defense_team_manager.step() 
+            
         actions += await self.combat_team_manager.step()               
 
 
         ## -----명령 실행-----
         await self.do_actions(actions)
+
+    '''def on_end(self, game_result):
+        for tag in self.combatArray:
+            print("111전투 : ", tag)
+        print("-----")
+        for tag in self.reconArray:
+            print("2222222정찰 : ", tag)
+        print("-----")
+        for tag in self.nukeArray:
+            print("핵 : ", tag)
+        print("-----")'''
+
+
