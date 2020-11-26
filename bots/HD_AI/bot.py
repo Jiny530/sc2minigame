@@ -125,8 +125,7 @@ class StepManager(object):
             # print(C.blue(f'man_step_time: {elapsed_time}'))
             self.step += 1
             self.last_game_time_step_evoked = self.bot.time
-            return False
-
+ 
 
 
 
@@ -370,6 +369,7 @@ class Bot(sc2.BotAI):
 
         self.tatics = Tactics.ATTACK #초기 tactic은 ATTACK으로 초기화
         
+
     async def on_step(self, iteration: int):
         """
         :param int iteration: 이번이 몇 번째 스텝인self.assign_manager = AssignManager(self)지를 인자로 넘겨 줌
@@ -400,9 +400,7 @@ class Bot(sc2.BotAI):
         if self.step_manager.step % 30 == 0:
             i = randint(0, 3) #일단 랜덤으로 변경
             self.tactics = Tactics(i)
-            print(self.tatics)
 
-        
 
         #actions += await self.attack_team_manager.step()
         #actions += await self.defense_team_manager.step() 
