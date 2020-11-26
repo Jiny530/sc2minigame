@@ -99,7 +99,6 @@ class ReconManager(object):
                     order = unit.move(self.bot.start_location)
                     actions.append(order)
         return actions
-    
 
 class Combat_Team_Manager(object):
     """
@@ -195,6 +194,7 @@ class Combat_Team_Manager(object):
         return actions
 
 
+
 class StepManager(object):
     """
     스텝 레이트 유지를 담당하는 매니저
@@ -277,6 +277,26 @@ class RatioManager(object):
                 UnitTypeId.BATTLECRUISER: 0,
             }
             self.evoked = dict()
+            
+        elif self.bot.tactics == Tactics.RECON:
+            self.target_unit_counts = {
+                UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
+                UnitTypeId.MARINE: 10,
+                UnitTypeId.MARAUDER: 0, 
+                UnitTypeId.REAPER: 5,
+                UnitTypeId.GHOST: 0,
+                UnitTypeId.HELLION: 0,
+                UnitTypeId.SIEGETANK: 3,
+                UnitTypeId.THOR: 0,
+                UnitTypeId.MEDIVAC: 0,
+                UnitTypeId.VIKINGFIGHTER: 0,
+                UnitTypeId.BANSHEE: 0,
+                UnitTypeId.RAVEN:3,
+                UnitTypeId.BATTLECRUISER: 0,
+            }
+            self.evoked = dict()
+
+
 
         # -----부족한 유닛 숫자 계산-----
         unit_counts = dict()
@@ -307,6 +327,7 @@ class AssignManager(object):
 
     def assign(self, manager):
 
+
         units_tag = self.bot.units.tags #전체유닛
         
         #tactic이 combat이면 combatarray에 주고 나머지엔 combat에서 쓰는게 제외하고 할당 가능?ㅇㅇ
@@ -318,6 +339,8 @@ class AssignManager(object):
             self.bot.reconArray = self.bot.reconArray | units_tag
         elif self.bot.tactics == Tactics.NUKE:
             self.bot.nukeArray = self.bot.nukeArray | units_tag
+
+# 사령부 주변에 적 없고 사령부 피 2/3 남았을때 지게로봇 소환
 
 
 class Bot(sc2.BotAI):
@@ -334,17 +357,23 @@ class Bot(sc2.BotAI):
         self.recon_manager = ReconManager(self)
         self.nuke_manager = NukeManager(self)
         self.ratio_manager = RatioManager(self)
+
         #부대별 유닛 array
         self.combatArray = set()
         self.reconArray = set()
         self.nukeArray = set()
         
 
+
     def on_start(self):
         """
         새로운 게임마다 초기화
         """
         self.step_manager.reset()
+
+        self.combat_team_manager.reset()
+        self.assign_manager.reset()
+
         self.combat_team_manager.reset()
         self.assign_manager.reset()
 
@@ -368,7 +397,6 @@ class Bot(sc2.BotAI):
         ccs = self.units(UnitTypeId.COMMANDCENTER).idle  # 전체 유닛에서 사령부 검색
 
         if self.step_manager.step % 2 == 0:
-            
             # -----사령부 명령 생성-----
             if ccs.exists:  # 사령부가 하나이상 존재할 경우
                 cc = ccs.first  # 첫번째 사령부 선택
@@ -378,26 +406,19 @@ class Bot(sc2.BotAI):
                     actions.append(cc.train(next_unit))
                     self.ratio_manager.evoked[(cc.tag, 'train')] = self.time
                     self.assign_manager.assign(self.combat_team_manager)
-
-            
         
         # -----전략 변경 -----
         if self.step_manager.step % 30 == 0:
             i = randint(0, 3) #일단 랜덤으로 변경
             self.tactics = Tactics(i)
-            #print(self.tactics)
             
-        
-            
-
         actions += await self.combat_team_manager.step()               
 
 
         ## -----명령 실행-----
         await self.do_actions(actions)
 
-'''
-    def on_end(self, game_result):
+    '''def on_end(self, game_result):
         for tag in self.combatArray:
             print("111전투 : ", tag)
         print("-----")
@@ -407,6 +428,5 @@ class Bot(sc2.BotAI):
         for tag in self.nukeArray:
             print("핵 : ", tag)
         print("-----")'''
-
 
 
