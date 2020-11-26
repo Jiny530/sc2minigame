@@ -125,8 +125,7 @@ class StepManager(object):
             # print(C.blue(f'man_step_time: {elapsed_time}'))
             self.step += 1
             self.last_game_time_step_evoked = self.bot.time
-            return False
-    
+ 
 
 class Combat_Team_Manager(object):
     """
@@ -223,8 +222,8 @@ class Combat_Team_Manager(object):
 
 
 class Tactics(Enum):
-    ATTACK = 0
-    DEFENSE = 1
+    ATTACK=0
+    DEFENSE=1
     NUKE=2
     RECON=3
 
@@ -277,6 +276,25 @@ class RatioManager(object):
                 UnitTypeId.BATTLECRUISER: 0,
             }
             self.evoked = dict()
+        
+        if self.bot.tactics == Tactics.RECON:
+            self.target_unit_counts = {
+                UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
+                UnitTypeId.MARINE: 10,
+                UnitTypeId.MARAUDER: 0, 
+                UnitTypeId.REAPER: 5,
+                UnitTypeId.GHOST: 0,
+                UnitTypeId.HELLION: 0,
+                UnitTypeId.SIEGETANK: 3,
+                UnitTypeId.THOR: 0,
+                UnitTypeId.MEDIVAC: 0,
+                UnitTypeId.VIKINGFIGHTER: 0,
+                UnitTypeId.BANSHEE: 0,
+                UnitTypeId.RAVEN:3,
+                UnitTypeId.BATTLECRUISER: 0,
+            }
+            self.evoked = dict()
+
 
         # -----부족한 유닛 숫자 계산-----
         unit_counts = dict()
@@ -313,6 +331,7 @@ class AssignManager(object):
             units = self.bot.units.of_type(ARMY_TYPES).owned
             unit_tags = units.tags
 
+# 사령부 주변에 적 없고 사령부 피 2/3 남았을때 지게로봇 소환
 
 class Bot(sc2.BotAI):
     """
@@ -374,10 +393,10 @@ class Bot(sc2.BotAI):
                     self.ratio_manager.evoked[(cc.tag, 'train')] = self.time
         
         # -----전략 변경 -----
-        if self.step_manager.step % 100 == 0:
-            i = randint(0, 1) #일단 랜덤으로 변경
+        if self.step_manager.step % 30 == 0:
+            i = randint(0, 3) #일단 랜덤으로 변경
             self.tactics = Tactics(i)
-            
+
 
         #actions += await self.attack_team_manager.step()
         #actions += await self.defense_team_manager.step() 
