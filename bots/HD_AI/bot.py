@@ -127,6 +127,10 @@ class StepManager(object):
             self.last_game_time_step_evoked = self.bot.time
  
 
+
+
+
+
 class Combat_Team_Manager(object):
     """
     일반 전투 부대 컨트롤(공격+수비)
