@@ -128,6 +128,10 @@ class StepManager(object):
             return False
 
 
+
+
+
+
 class Combat_Team_Manager(object):
     """
     일반 전투 부대 컨트롤(공격+수비)
