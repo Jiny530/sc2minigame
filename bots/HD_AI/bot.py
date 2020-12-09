@@ -25,7 +25,24 @@ class NukeManager(object):
     """
     def __init__(self, bot_ai):
         self.bot = bot_ai
-        
+
+    # 사령부 위치에 따라 유령 움직일 장소
+    def reset():
+        self.pos=0
+        self.ghost_pos1_x=32.5
+        self.ghost_pos2_x=95.5
+        self.ghost_pos=0
+        self.enemy_pos=0
+        assign_position()
+    
+    def assign_position():
+        if self.enemy_start_locations[0].x == 95.5:
+            self.ghost_pos = self.ghost_pos1_x
+            self.enemy_pos= self.ghost_pos2_x
+        else :
+            self.ghost_pos = self.ghost_pos2_x
+            self.enemy_pos= self.ghost_pos1_x
+
     # 마지막 명령이 발행된지 10초가 넘었으면 리워드 -1?
     # 택틱마다 일정시간 지나도 명령 발행 안되면 리워드 -1 
 
@@ -36,22 +53,33 @@ class NukeManager(object):
         cc_abilities = await self.bot.get_available_abilities(cc)
         ghosts = self.bot.units(UnitTypeId.GHOST)
         
-        if ghosts.amount == 0:
-            if AbilityId.BARRACKSTRAIN_GHOST in cc_abilities:
-                # 고스트가 하나도 없으면 고스트 훈련
-                print(cc_abilities)
-                actions.append(cc.train(UnitTypeId.GHOST))
-
-        elif ghosts.amount > 0:
+        if ghosts.amount > 0:
+            ghost = ghosts.first
             if AbilityId.BUILD_NUKE in cc_abilities:
                 # 전술핵 생산 가능(자원이 충분)하면 전술핵 생산
                 actions.append(cc(AbilityId.BUILD_NUKE))
+                print(ghosts.first.position)
 
-            ghost_abilities = await self.bot.get_available_abilities(ghosts.first)
-            if AbilityId.TACNUKESTRIKE_NUKECALLDOWN in ghost_abilities and ghosts.first.is_idle:
-                # 전술핵 발사 가능(생산완료)하고 고스트가 idle 상태이면, 적 본진에 전술핵 발사
-                actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
-                actions.append(ghosts.first(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=self.bot.enemy_cc))
+            if ghost.distance_to(Point2((self.ghost_pos,55))) > 3 and self.pos == 0:
+                actions.append(ghost.move(Point2((self.ghost_pos,55))))
+                self.pos=1
+
+            if ghost.distance_to(Point2((self.ghost_pos,55))) == 0 and self.pos == 1:
+                print(ghost.position)
+                actions.append(ghosts.first.move(Point2((self.enemy_pos,55))))
+                self.pos=2
+
+            if ghost.distance_to(Point2((self.enemy_pos,55))) < 3:
+                print(ghost.position)
+                self.pos=3
+
+            if self.pos==3 :
+                ghost_abilities = await self.bot.get_available_abilities(ghosts.first)
+                if AbilityId.TACNUKESTRIKE_NUKECALLDOWN in ghost_abilities and ghosts.first.is_idle:
+                    # 전술핵 발사 가능(생산완료)하고 고스트가 idle 상태이면, 적 본진에 전술핵 발사
+                    actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
+                    actions.append(ghosts.first(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=self.bot.enemy_start_locations[0]))
+                    print("핵쏨")
 
         return actions
 
@@ -99,6 +127,7 @@ class ReconManager(object):
                     order = unit.move(self.bot.start_location)
                     actions.append(order)
         return actions
+
 
 class CombatManager(object):
     """
@@ -276,6 +305,7 @@ class Tactics(Enum):
     TEST = 4
 
 
+
 class RatioManager(object):
     """
     tactic에 따라 생성할 유닛 비율 결정하는 매니저
@@ -360,6 +390,23 @@ class RatioManager(object):
             }
             self.evoked = dict()
 
+        elif self.bot.tactics == Tactics.NUKE:
+            self.target_unit_counts = {
+                UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
+                UnitTypeId.MARINE: 0,
+                UnitTypeId.MARAUDER: 0, 
+                UnitTypeId.REAPER: 0,
+                UnitTypeId.GHOST: 1,
+                UnitTypeId.HELLION: 0,
+                UnitTypeId.SIEGETANK: 0,
+                UnitTypeId.THOR: 0,
+                UnitTypeId.MEDIVAC: 0,
+                UnitTypeId.VIKINGFIGHTER: 0,
+                UnitTypeId.BANSHEE: 0,
+                UnitTypeId.RAVEN:0,
+                UnitTypeId.BATTLECRUISER: 0,
+            }
+            self.evoked = dict()
 
 
 
@@ -368,6 +415,8 @@ class RatioManager(object):
         for unit in self.bot.units:
             unit_counts[unit.type_id] = unit_counts.get(unit.type_id, 0) + 1
         
+        ### 여기서 unit_counts에 각각 다른 유닛집단 들어가야하지않나??
+
         target_unit_counts = np.array(list(self.target_unit_counts.values()))
         target_unit_ratio = target_unit_counts / (target_unit_counts.sum() + 1e-6)  # 목표로 하는 유닛 비율
         current_unit_counts = np.array([unit_counts.get(tid, 0) for tid in self.target_unit_counts.keys()])
@@ -429,7 +478,6 @@ class Bot(sc2.BotAI):
         self.nukeArray = set()
         
 
-
     def on_start(self):
         """
         새로운 게임마다 초기화
@@ -437,10 +485,11 @@ class Bot(sc2.BotAI):
         self.step_manager.reset()
         self.combat_manager.reset()
         self.assign_manager.reset()
-
         self.assign_manager.assign(self.combat_manager)
+        self.nuke_manager.reset()
 
-        self.tatics = Tactics.TEST #초기 tactic은 ATTACK으로 초기화
+
+        self.tatics = Tactics.ATTACK #초기 tactic은 ATTACK으로 초기화
         
 
     async def on_step(self, iteration: int):
@@ -458,6 +507,8 @@ class Bot(sc2.BotAI):
         ccs = self.units(UnitTypeId.COMMANDCENTER).idle  # 전체 유닛에서 사령부 검색
         
         if self.step_manager.step % 2 == 0:
+            self.assign_manager.assign(self.combat_team_manager)
+            
             # -----사령부 명령 생성-----
             if ccs.exists:  # 사령부가 하나이상 존재할 경우
                 cc = ccs.first  # 첫번째 사령부 선택
@@ -479,8 +530,13 @@ class Bot(sc2.BotAI):
         if self.step_manager.step % 30 == 0:
             i = randint(0, 3) #일단 랜덤으로 변경
             self.tactics = Tactics(i)
-            
-        actions += await self.combat_team_manager.step() 
+
+
+        #actions += await self.attack_team_manager.step()
+        #actions += await self.defense_team_manager.step() 
+        actions += await self.combat_manager.step()   
+        actions += await self.nuke_manager.step()
+        
 
         ## -----명령 실행-----
         await self.do_actions(actions)
