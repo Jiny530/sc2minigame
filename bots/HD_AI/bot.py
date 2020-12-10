@@ -482,7 +482,7 @@ class Bot(sc2.BotAI):
         self.step_manager.reset()
         self.combat_manager.reset()
         self.assign_manager.reset()
-        self.assign_manager.assign(self.combat_manager)
+        self.assign_manager.assign()
         self.nuke_manager.reset()
         self.recon_manager.reset()
         self.assign_manager.assign()
@@ -505,7 +505,6 @@ class Bot(sc2.BotAI):
         ccs = self.units(UnitTypeId.COMMANDCENTER).idle  # 전체 유닛에서 사령부 검색
         
         if self.step_manager.step % 2 == 0:
-            self.assign_manager.assign()
             
             # -----사령부 명령 생성-----
             if ccs.exists:  # 사령부가 하나이상 존재할 경우
@@ -526,7 +525,7 @@ class Bot(sc2.BotAI):
         
         # -----전략 변경 -----
         if self.step_manager.step % 30 == 0:
-            i = randint(0, 2) #일단 랜덤으로 변경
+            i = randint(0, 4) #일단 랜덤으로 변경
             self.tactics = Tactics(i)
             print("전략 : ",self.tactics)
             
