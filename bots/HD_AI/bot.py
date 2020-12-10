@@ -505,6 +505,7 @@ class Bot(sc2.BotAI):
         ccs = self.units(UnitTypeId.COMMANDCENTER).idle  # 전체 유닛에서 사령부 검색
         
         if self.step_manager.step % 2 == 0:
+            self.assign_manager.assign()
             
             # -----사령부 명령 생성-----
             if ccs.exists:  # 사령부가 하나이상 존재할 경우
