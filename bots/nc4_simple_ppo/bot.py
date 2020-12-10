@@ -40,6 +40,7 @@ nest_asyncio.apply()
 class Model(nn.Module):
     def __init__(self):
         super().__init__()
+        #5가 state 개수, 12가 유닛 종류(economy)
         self.fc1 = nn.Linear(5 + 12, 64)
         self.norm1 = nn.LayerNorm(64)
         self.fc2 = nn.Linear(64, 64)

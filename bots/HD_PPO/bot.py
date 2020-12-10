@@ -38,6 +38,7 @@ nest_asyncio.apply()
 class Model(nn.Module):
     def __init__(self):
         super().__init__()
+         #5가 state 개수, 12가 유닛종류(economy)
         self.fc1 = nn.Linear(5, 64)
         self.norm1 = nn.LayerNorm(64)
         self.fc2 = nn.Linear(64, 64)
@@ -343,13 +344,6 @@ class StepManager(object):
             return False
 
 
-class Tactics(Enum):
-    ATTACK = 0
-    NUKE = 1
-    RECON = 2
-    MULE = 3
-
-
 
 class RatioManager(object):
     """
@@ -365,7 +359,8 @@ class RatioManager(object):
 
         unit_counts = dict()
         
-        if self.bot.tactics == Tactics.ATTACK:
+        if self.bot.tactic_strategy == TacticStrategy.ATTACK or self.bot.tactic_strategy == TacticStrategy.MULE:
+            print("들어옴: 111111")
             self.target_unit_counts = {
                 UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
                 UnitTypeId.MARINE: 25,
@@ -385,7 +380,8 @@ class RatioManager(object):
                 if unit.tag in self.bot.combatArray: # 유닛의 태그가 어레이에 포함되어있으면
                     unit_counts[unit.type_id] = unit_counts.get(unit.type_id, 0) + 1
             
-        elif self.bot.tactics == Tactics.RECON:
+        elif self.bot.tactic_strategy == TacticStrategy.RECON:
+            print("들어옴: 2222222")
             self.target_unit_counts = {
                 UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
                 UnitTypeId.MARINE: 0,
@@ -405,7 +401,8 @@ class RatioManager(object):
                 if unit.tag in self.bot.reconArray: # 유닛의 태그가 어레이에 포함되어있으면
                     unit_counts[unit.type_id] = unit_counts.get(unit.type_id, 0) + 1
 
-        elif self.bot.tactics == Tactics.NUKE:
+        elif self.bot.tactic_strategy == TacticStrategy.NUKE:
+            print("들어옴: 333333333")
             self.target_unit_counts = {
                 UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
                 UnitTypeId.MARINE: 0,
@@ -424,6 +421,8 @@ class RatioManager(object):
             for unit in self.bot.units:
                 if unit.tag in self.bot.nukeArray: # 유닛의 태그가 어레이에 포함되어있으면
                     unit_counts[unit.type_id] = unit_counts.get(unit.type_id, 0) + 1
+
+        
 
         self.evoked = dict()
         
@@ -466,11 +465,11 @@ class AssignManager(object):
         #tactic이 combat이면 combatarray에 주고 나머지엔 combat에서 쓰는게 제외하고 할당 가능?ㅇㅇ
         units_tag = units_tag - self.bot.combatArray - self.bot.reconArray - self.bot.nukeArray
         
-        if self.bot.tactics == Tactics.ATTACK:
+        if self.bot.tactic_strategy == TacticStrategy.ATTACK or self.bot.tactic_strategy == TacticStrategy.MULE:
             self.bot.combatArray = self.bot.combatArray | units_tag
-        elif self.bot.tactics == Tactics.RECON:
+        elif self.bot.tactic_strategy == TacticStrategy.RECON:
             self.bot.reconArray = self.bot.reconArray | units_tag
-        elif self.bot.tactics == Tactics.NUKE:
+        elif self.bot.tactic_strategy == TacticStrategy.NUKE:
             self.bot.nukeArray = self.bot.nukeArray | units_tag
 
 # 사령부 주변에 적 없고 사령부 피 2/3 남았을때 지게로봇 소환
@@ -494,12 +493,11 @@ class Bot(sc2.BotAI):
                     torch.load(model_path, map_location='cpu')
                 )
             except Exception as exc:
-                import traceback; traceback.print_exc()
+                import traceback; traceback.print_exc() 
 
         self.step_manager = StepManager(self)
         self.combat_manager = CombatManager(self)
         self.assign_manager = AssignManager(self)
-        self.tactics = Tactics.TEST #Tactic은 ATTACK으로 초기화
         self.recon_manager = ReconManager(self)
         self.nuke_manager = NukeManager(self)
         self.ratio_manager = RatioManager(self)
@@ -519,6 +517,8 @@ class Bot(sc2.BotAI):
 
         self.tactic_strategy = TacticStrategy.ATTACK
 
+        self.cc = self.units(UnitTypeId.COMMANDCENTER).first  # 전체 유닛에서 사령부 검색
+
         self.step_manager.reset()
         self.combat_manager.reset()
         self.assign_manager.reset()
@@ -526,8 +526,6 @@ class Bot(sc2.BotAI):
         self.nuke_manager.reset()
         self.recon_manager.reset()
         self.assign_manager.assign()
-
-        self.tatics = Tactics.ATTACK #초기 tactic은 ATTACK으로 초기화
 
 
         # Learner에 join
@@ -546,43 +544,36 @@ class Bot(sc2.BotAI):
             return list()
 
         actions = list() # 이번 step에 실행할 액션 목록
+        #print("1111택틱: ", self.tactic_strategy)
 
         if self.time - self.last_step_time >= self.step_interval:
             self.tactic_strategy= self.set_strategy()
             self.last_step_time = self.time
-
-        ccs = self.units(UnitTypeId.COMMANDCENTER).idle  # 전체 유닛에서 사령부 검색
+            print("22222택틱: ", self.tactic_strategy)
         
+        
+
         if self.step_manager.step % 2 == 0:
             self.assign_manager.assign()
             
-            # -----사령부 명령 생성-----
-            if ccs.exists:  # 사령부가 하나이상 존재할 경우
-                cc = ccs.first  # 첫번째 사령부 선택
-                print("#####cc피: ", cc.health_percentage)
-                next_unit = self.ratio_manager.next_unit_select() #RatioManager에서 받아옴
-                if self.can_afford(next_unit) and self.time - self.ratio_manager.evoked.get((cc.tag, 'train'), 0) > 1.0:
-                    # 해당 유닛 생산 가능하고, 마지막 명령을 발행한지 1초 이상 지났음
-                    actions.append(cc.train(next_unit))
-                    self.ratio_manager.evoked[(cc.tag, 'train')] = self.time
-                    self.assign_manager.assign()
-                #if cc.health_percentage < 0.9:    #mule 테스트용 코드
-                #if self.units.exclude_type([UnitTypeId.COMMANDCENTER, UnitTypeId.MEDIVAC]).amount > 5:
-                    #self.tactics = Tactics(3)
-                    #actions += await self.mule_manager.step()
-                #else:
-                    #self.tactics = Tactics(4)
-        
-        # -----전략 변경 -----
-        if self.step_manager.step % 30 == 0:
-            i = randint(0, 3) #일단 랜덤으로 변경
-            self.tactics = Tactics(i)
-            print("전략 : ",self.tactics)
-            
+            next_unit = self.ratio_manager.next_unit_select() #RatioManager에서 받아옴
+            if self.can_afford(next_unit) and self.time - self.ratio_manager.evoked.get((self.cc.tag, 'train'), 0) > 1.0:
+                # 해당 유닛 생산 가능하고, 마지막 명령을 발행한지 1초 이상 지났음
+                actions.append(self.cc.train(next_unit))
+                self.ratio_manager.evoked[(self.cc.tag, 'train')] = self.time
+                self.assign_manager.assign()
+            #if cc.health_percentage < 0.9:    #mule 테스트용 코드
+            #if self.units.exclude_type([UnitTypeId.COMMANDCENTER, UnitTypeId.MEDIVAC]).amount > 5:
+                #self.tactics = Tactics(3)
+                #actions += await self.mule_manager.step()
+            #else:
+                #self.tactics = Tactics(4)
 
+
+        
         #actions += await self.attack_team_manager.step()
         actions += await self.recon_manager.step() 
-        actions += await self.combat_team_manager.step()   
+        actions += await self.combat_manager.step()   
         actions += await self.nuke_manager.step()
         
 
@@ -622,9 +613,21 @@ class Bot(sc2.BotAI):
                 value = value.item()
                 action = logp.exp().multinomial(num_samples=1).item()
 
-        economy_strategy = EconomyStrategy.to_type_id[action // len(ArmyStrategy)]
-        army_strategy = ArmyStrategy(action % len(ArmyStrategy))
-        return economy_strategy, army_strategy
+        tactic_strategy = TacticStrategy(action)
+        return tactic_strategy
+
+
+    def on_end(self, game_result):
+        if self.sock is not None:
+            score = 1. if game_result is Result.Victory else -1.
+            self.sock.send_multipart((
+                CommandType.SCORE, 
+                pickle.dumps(self.game_id),
+                pickle.dumps(score),
+            ))
+            self.sock.recv_multipart()
+
+
 
     '''def on_end(self, game_result):
         for tag in self.combatArray:
