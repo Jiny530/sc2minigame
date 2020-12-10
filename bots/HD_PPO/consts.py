@@ -45,6 +45,12 @@ class ArmyStrategy(Enum):
     OFFENSE = 1
 
 
+class TacticStrategy(Enum):
+    ATTACK = 0 
+    RECON = 1
+    NUKE = 2
+    MULE = 3
+
 Sample = namedtuple('Sample', 's, a, r, done, logp, value')
 
 

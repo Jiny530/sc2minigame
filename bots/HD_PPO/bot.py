@@ -30,6 +30,29 @@ from sc2.position import Point2, Point3
 from enum import Enum
 from random import *
 
+from .consts import CommandType, TacticStrategy
+
+nest_asyncio.apply()
+
+
+class Model(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.fc1 = nn.Linear(5, 64)
+        self.norm1 = nn.LayerNorm(64)
+        self.fc2 = nn.Linear(64, 64)
+        self.norm2 = nn.LayerNorm(64)
+        self.vf = nn.Linear(64, 1)
+        self.tactic_head = nn.Linear(64, len(TacticStrategy))
+
+    def forward(self, x):
+        x = F.relu(self.norm1(self.fc1(x)))
+        x = F.relu(self.norm2(self.fc2(x)))
+        value = self.vf(x)
+        tactic_logp = torch.log_softmax(self.tactic_head(x), -1)
+        bz = x.shape[0]
+        logp = (tactic_logp.view(bz, -1, 1)).view(bz, -1)
+        return value, logp
 
     
 class NukeManager(object):
@@ -325,7 +348,6 @@ class Tactics(Enum):
     NUKE = 1
     RECON = 2
     MULE = 3
-    TEST = 4
 
 
 
@@ -459,8 +481,21 @@ class Bot(sc2.BotAI):
     빌드 오더 대신, 유닛 비율을 맞추도록 유닛을 생산함
     개별 전투 유닛이 적사령부에 바로 공격하는 대신, 15이 모일 때까지 대기
     """
-    def __init__(self, *args, **kwargs):
+    def __init__(self, step_interval=5.0, host_name='', sock=None):
         super().__init__()
+        self.step_interval = step_interval
+        self.host_name = host_name
+        self.sock = sock
+        if sock is None:
+            try:
+                self.model = Model()
+                model_path = pathlib.Path(__file__).parent / 'model.pt'
+                self.model.load_state_dict(
+                    torch.load(model_path, map_location='cpu')
+                )
+            except Exception as exc:
+                import traceback; traceback.print_exc()
+
         self.step_manager = StepManager(self)
         self.combat_manager = CombatManager(self)
         self.assign_manager = AssignManager(self)
@@ -479,6 +514,11 @@ class Bot(sc2.BotAI):
         """
         새로운 게임마다 초기화
         """
+        self.step_interval = self.step_interval
+        self.last_step_time = -self.step_interval
+
+        self.tactic_strategy = TacticStrategy.ATTACK
+
         self.step_manager.reset()
         self.combat_manager.reset()
         self.assign_manager.reset()
@@ -488,6 +528,10 @@ class Bot(sc2.BotAI):
         self.assign_manager.assign()
 
         self.tatics = Tactics.ATTACK #초기 tactic은 ATTACK으로 초기화
+
+
+        # Learner에 join
+        self.game_id = f"{self.host_name}_{time.time()}"
         
 
     async def on_step(self, iteration: int):
@@ -502,6 +546,11 @@ class Bot(sc2.BotAI):
             return list()
 
         actions = list() # 이번 step에 실행할 액션 목록
+
+        if self.time - self.last_step_time >= self.step_interval:
+            self.tactic_strategy= self.set_strategy()
+            self.last_step_time = self.time
+
         ccs = self.units(UnitTypeId.COMMANDCENTER).idle  # 전체 유닛에서 사령부 검색
         
         if self.step_manager.step % 2 == 0:
@@ -526,7 +575,7 @@ class Bot(sc2.BotAI):
         
         # -----전략 변경 -----
         if self.step_manager.step % 30 == 0:
-            i = randint(0, 4) #일단 랜덤으로 변경
+            i = randint(0, 3) #일단 랜덤으로 변경
             self.tactics = Tactics(i)
             print("전략 : ",self.tactics)
             
@@ -540,6 +589,42 @@ class Bot(sc2.BotAI):
         ## -----명령 실행-----
         await self.do_actions(actions)
         #print("한거: ",actions)
+
+
+
+    def set_strategy(self):
+        #
+        # 특징 추출
+        #
+        state = np.zeros(5, dtype=np.float32)
+        state[0] = self.cc.health_percentage
+        state[1] = min(1.0, self.minerals / 1000)
+        state[2] = min(1.0, self.vespene / 1000)
+        state[3] = min(1.0, self.time / 360)
+        state[4] = min(1.0, self.state.score.total_damage_dealt_life / 2500)
+        state = state.reshape(1, -1)
+
+        # NN
+        data = [
+            CommandType.STATE,
+            pickle.dumps(self.game_id),
+            pickle.dumps(state.shape),
+            state,
+        ]
+        if self.sock is not None:
+            self.sock.send_multipart(data)
+            data = self.sock.recv_multipart()
+            value = pickle.loads(data[0])
+            action = pickle.loads(data[1])
+        else:
+            with torch.no_grad():
+                value, logp = self.model(torch.FloatTensor(state))
+                value = value.item()
+                action = logp.exp().multinomial(num_samples=1).item()
+
+        economy_strategy = EconomyStrategy.to_type_id[action // len(ArmyStrategy)]
+        army_strategy = ArmyStrategy(action % len(ArmyStrategy))
+        return economy_strategy, army_strategy
 
     '''def on_end(self, game_result):
         for tag in self.combatArray:
