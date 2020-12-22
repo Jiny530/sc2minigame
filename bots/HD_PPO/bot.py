@@ -1,4 +1,3 @@
-
 __author__ = '이다영, 박혜진'
 
 import os
@@ -38,6 +37,7 @@ nest_asyncio.apply()
 class Model(nn.Module):
     def __init__(self):
         super().__init__()
+         #5가 state 개수, 12가 유닛종류(economy)
         self.fc1 = nn.Linear(5, 64)
         self.norm1 = nn.LayerNorm(64)
         self.fc2 = nn.Linear(64, 64)
@@ -140,37 +140,35 @@ class ReconManager(object):
         
     async def step(self):
         actions = list()
-        recon_tag = self.bot.units.filter(
-            lambda unit: unit.tag in self.bot.reconArray
-        )
 
-        for unit in recon_tag: 
-            # 근처에 적들이 있는지 파악
-            unit.move(Point2((self.pos,60)))
-            threaten = self.bot.known_enemy_units.closer_than(
-                    self.perimeter_radious, unit.position)
-            
-            if unit.type_id == UnitTypeId.RAVEN:
-                if unit.health_percentage > 0.8 and unit.energy >= 50:
-                    print("유닛오더? ",unit.orders)
-                    if threaten.amount > 0: # 근처에 적이 하나라도 있으면
-                        alert = 1
-                        if unit.orders and unit.orders[0].ability.id != AbilityId.RAVENBUILD_AUTOTURRET:
-                            closest_threat = threaten.closest_to(unit.position)
-                            pos = unit.position.towards(closest_threat.position, 5)
-                            pos = await self.bot.find_placement(
-                                UnitTypeId.AUTOTURRET, pos)
-                            order = unit(AbilityId.BUILDAUTOTURRET_AUTOTURRET, pos)
-                            actions.append(order)
-                '''else:
-                    if unit.distance_to(self.target) > 5:
-                        order = unit.move(self.target)
-                        actions.append(order)'''
+        for unit in self.bot.units:
+            if unit.tag in self.bot.reconArray:
+                # 근처에 적들이 있는지 파악
+                actions.append(unit.move(Point2((self.pos,40))))
+                threaten = self.bot.known_enemy_units.closer_than(
+                        self.perimeter_radious, unit.position)
+                
+                if unit.type_id == UnitTypeId.RAVEN:
+                    if unit.health_percentage > 0.8 and unit.energy >= 50:
+                        print("유닛오더? ",unit.orders)
+                        if threaten.amount > 0: # 근처에 적이 하나라도 있으면
+                            alert = 1
+                            if unit.orders and unit.orders[0].ability.id != AbilityId.RAVENBUILD_AUTOTURRET:
+                                closest_threat = threaten.closest_to(unit.position)
+                                pos = unit.position.towards(closest_threat.position, 5)
+                                pos = await self.bot.find_placement(
+                                    UnitTypeId.AUTOTURRET, pos)
+                                order = unit(AbilityId.BUILDAUTOTURRET_AUTOTURRET, pos)
+                                actions.append(order)
+                    '''else:
+                        if unit.distance_to(self.target) > 5:
+                            order = unit.move(self.target)
+                            actions.append(order)'''
 
-            elif unit.type_id == UnitTypeId.MARINE:
-                if self.bot.known_enemy_units.exists:
-                    enemy_unit = self.bot.known_enemy_units.closest_to(unit)
-                    actions.append(unit.attack(enemy_unit))
+                elif unit.type_id == UnitTypeId.MARINE:
+                    if self.bot.known_enemy_units.exists:
+                        enemy_unit = self.bot.known_enemy_units.closest_to(unit)
+                        actions.append(unit.attack(enemy_unit))
 
         return actions
 
@@ -189,76 +187,79 @@ class CombatManager(object):
         actions = list()
 
         ##-----변수, 그룹 등 선언-----
-        combat_tag = self.bot.units.filter(
+        '''combat_tag = self.bot.units.filter(
             lambda unit: unit.tag in self.bot.combatArray
-        )
-        combat_units = combat_tag.exclude_type([UnitTypeId.COMMANDCENTER, UnitTypeId.MEDIVAC])
+        )'''
+        
         wounded_units = self.bot.units.filter(
             lambda u: u.is_biological and u.health_percentage < 1.0
         )  # 체력이 100% 이하인 유닛 검색
         enemy_cc = self.bot.enemy_start_locations[0]  # 적 시작 위치
 
+        
         #
         # -----유닛 명령 생성-----
         ## 마이크로 컨트롤
         #
-        for unit in combat_tag:  # 건물이 아닌 유닛만 선택
-            
-            ##-----타겟 설정-----
-            enemy_unit = self.bot.enemy_start_locations[0]
-            if self.bot.known_enemy_units.exists:
-                enemy_unit = self.bot.known_enemy_units.closest_to(unit)  # 가장 가까운 적 유닛
+        for unit in self.bot.units:
+            if unit.tag in self.bot.combatArray:
+                    ##-----타겟 설정-----
+                enemy_unit = self.bot.enemy_start_locations[0]
+                if self.bot.known_enemy_units.exists:
+                    enemy_unit = self.bot.known_enemy_units.closest_to(unit)  # 가장 가까운 적 유닛
 
-            # 적 사령부와 가장 가까운 적 유닛중 더 가까운 것을 목표로 설정
-            if unit.distance_to(enemy_cc) < unit.distance_to(enemy_unit):
-                target = enemy_cc
-            else:
-                target = enemy_unit
-
-            ##-----유닛 스킬-----
-
-            ##-----전투 유닛 전체-----
-            if unit.type_id is not UnitTypeId.MEDIVAC:
-                #print(combat_units.amount)
-                if combat_units.amount > 20 and self.bot.units.of_type([UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK]).amount > 1:
-                    # 전투가능한 유닛 수가 20을 넘으면 + 탱크 2대 이상 적 본진으로 공격              
-                    actions.append(unit.attack(target))
-                    use_stimpack = True
-                    siege = False
+                # 적 사령부와 가장 가까운 적 유닛중 더 가까운 것을 목표로 설정
+                if unit.distance_to(enemy_cc) < unit.distance_to(enemy_unit):
+                    target = enemy_cc
                 else:
-                    # 적 사령부 방향에 유닛 집결
-                    target = self.bot.start_location + 0.25 * (enemy_cc.position - self.bot.start_location)
-                    actions.append(unit.attack(target))
-                    use_stimpack = False
-                    siege = True
+                    target = enemy_unit
 
-                ##-----해병과 불곰-----
-                if unit.type_id in (UnitTypeId.MARINE, UnitTypeId.MARAUDER):
-                    if use_stimpack and unit.distance_to(target) < 15:
-                        # 유닛과 목표의 거리가 15이하일 경우 스팀팩 사용
-                        if not unit.has_buff(BuffId.STIMPACK) and unit.health_percentage > 0.5:
-                            # 현재 스팀팩 사용중이 아니며, 체력이 50% 이상
-                            if self.bot.time - self.evoked.get((unit.tag, AbilityId.EFFECT_STIM), 0) > 1.0:
-                                # 1초 이전에 스팀팩을 사용한 적이 없음
-                                actions.append(unit(AbilityId.EFFECT_STIM))
-                                self.evoked[(unit.tag, AbilityId.EFFECT_STIM)] = self.bot.time
+                ##-----유닛 스킬-----
 
-                ##-----탱크-----
-                if unit.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
-                    if self.bot.known_enemy_units.exists:
-                        #타겟설정: 해병과 불곰 우선
-                        if self.bot.known_enemy_units.of_type([UnitTypeId.MARINE, UnitTypeId.MARAUDER]).exists:
-                            target = self.bot.known_enemy_units.of_type([UnitTypeId.MARINE, UnitTypeId.MARAUDER]).closest_to(unit)
-                    
-                        if siege: #다 안모여서 대기중
-                            if unit.distance_to(self.bot.start_location + 0.25 * (enemy_cc.position - self.bot.start_location)) < 5:
-                                if unit.type_id == UnitTypeId.SIEGETANK:
-                                    order = unit(AbilityId.SIEGEMODE_SIEGEMODE)
-                                    actions.append(order) 
-                        else: #다모여서 돌격
-                            if unit.distance_to(target) > 10 and unit.type_id == UnitTypeId.SIEGETANKSIEGED:
-                                order = unit(AbilityId.UNSIEGE_UNSIEGE)
-                                actions.append(order)
+                ##-----전투 유닛 전체-----
+                if unit.type_id is not UnitTypeId.MEDIVAC:
+                    #print(combat_units.amount)
+                    if len(self.bot.combatArray) > 20 and self.bot.units.of_type([UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK]).amount > 1:
+                        #unit.move(Point2((self.pos,60)))
+                        # 전투가능한 유닛 수가 20을 넘으면 + 탱크 2대 이상 적 본진으로 공격              
+                        actions.append(unit.attack(target))
+                        use_stimpack = True
+                        siege = False
+                    else:
+                        # 적 사령부 방향에 유닛 집결
+                        target = self.bot.start_location + 0.25 * (enemy_cc.position - self.bot.start_location)
+                        actions.append(unit.attack(target))
+                        use_stimpack = False
+                        siege = True
+
+                    ##-----해병과 불곰-----
+                    if unit.type_id in (UnitTypeId.MARINE, UnitTypeId.MARAUDER):
+                        if use_stimpack and unit.distance_to(target) < 15:
+                            # 유닛과 목표의 거리가 15이하일 경우 스팀팩 사용
+                            if not unit.has_buff(BuffId.STIMPACK) and unit.health_percentage > 0.5:
+                                # 현재 스팀팩 사용중이 아니며, 체력이 50% 이상
+                                if self.bot.time - self.evoked.get((unit.tag, AbilityId.EFFECT_STIM), 0) > 1.0:
+                                    # 1초 이전에 스팀팩을 사용한 적이 없음
+                                    actions.append(unit(AbilityId.EFFECT_STIM))
+                                    self.evoked[(unit.tag, AbilityId.EFFECT_STIM)] = self.bot.time
+
+                    ##-----탱크-----
+                    if unit.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
+                        if self.bot.known_enemy_units.exists:
+                            #타겟설정: 해병과 불곰 우선
+                            if self.bot.known_enemy_units.of_type([UnitTypeId.MARINE, UnitTypeId.MARAUDER]).exists:
+                                target = self.bot.known_enemy_units.of_type([UnitTypeId.MARINE, UnitTypeId.MARAUDER]).closest_to(unit)
+                        
+                            if siege: #다 안모여서 대기중
+                                if unit.distance_to(self.bot.start_location + 0.25 * (enemy_cc.position - self.bot.start_location)) < 5:
+                                    if unit.type_id == UnitTypeId.SIEGETANK:
+                                        order = unit(AbilityId.SIEGEMODE_SIEGEMODE)
+                                        actions.append(order) 
+                            else: #다모여서 돌격
+                                if unit.distance_to(target) > 10 and unit.type_id == UnitTypeId.SIEGETANKSIEGED:
+                                    order = unit(AbilityId.UNSIEGE_UNSIEGE)
+                                    actions.append(order)
+            
                                 
 
 
@@ -269,10 +270,10 @@ class CombatManager(object):
                     wounded_unit = wounded_units.closest_to(unit)  # 가장 가까운 체력이 100% 이하인 유닛
                     actions.append(unit(AbilityId.MEDIVACHEAL_HEAL, wounded_unit))  # 유닛 치료 명령
                     #print(wounded_unit.name, "을 회복중")
-                elif combat_units.amount < 1 :
+                elif len(self.bot.combatArray) < 1 :
                     actions.append(unit.move(self.bot.cc - 5))
                 else: 
-                    actions.append(unit.move(combat_units.center))
+                    actions.append(unit.move(self.bot.units.closest_to(unit)))
                     #print("대기중")
 
         # -----유닛 명령 생성 끝-----
@@ -295,7 +296,7 @@ class MuleManager(object):
         mule = self.bot.units(UnitTypeId.MULE)
         pos = cc.position.towards(enemy_cc.position, -5)
 
-        if cc.health_percentage < 1:
+        if cc.health_percentage < 0.8:
             if mule.amount == 0:
                 print("뮬없음")
                 if AbilityId.CALLDOWNMULE_CALLDOWNMULE in cc_abilities:
@@ -343,13 +344,6 @@ class StepManager(object):
             return False
 
 
-class Tactics(Enum):
-    ATTACK = 0
-    NUKE = 1
-    RECON = 2
-    MULE = 3
-
-
 
 class RatioManager(object):
     """
@@ -365,7 +359,8 @@ class RatioManager(object):
 
         unit_counts = dict()
         
-        if self.bot.tactics == Tactics.ATTACK:
+        if self.bot.tactic_strategy == TacticStrategy.ATTACK or self.bot.tactic_strategy == TacticStrategy.MULE:
+            print("들어옴: 111111")
             self.target_unit_counts = {
                 UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
                 UnitTypeId.MARINE: 25,
@@ -373,7 +368,7 @@ class RatioManager(object):
                 UnitTypeId.REAPER: 0,
                 UnitTypeId.GHOST: 0,
                 UnitTypeId.HELLION: 0,
-                UnitTypeId.SIEGETANK: 5,
+                UnitTypeId.SIEGETANK: 2,
                 UnitTypeId.THOR: 0,
                 UnitTypeId.MEDIVAC: 0,
                 UnitTypeId.VIKINGFIGHTER: 0,
@@ -385,12 +380,13 @@ class RatioManager(object):
                 if unit.tag in self.bot.combatArray: # 유닛의 태그가 어레이에 포함되어있으면
                     unit_counts[unit.type_id] = unit_counts.get(unit.type_id, 0) + 1
             
-        elif self.bot.tactics == Tactics.RECON:
+        elif self.bot.tactic_strategy == TacticStrategy.RECON:
+            print("들어옴: 2222222")
             self.target_unit_counts = {
                 UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
-                UnitTypeId.MARINE: 0,
+                UnitTypeId.MARINE: 2,
                 UnitTypeId.MARAUDER: 0, 
-                UnitTypeId.REAPER: 10,
+                UnitTypeId.REAPER: 0,
                 UnitTypeId.GHOST: 0,
                 UnitTypeId.HELLION: 0,
                 UnitTypeId.SIEGETANK: 0,
@@ -398,32 +394,23 @@ class RatioManager(object):
                 UnitTypeId.MEDIVAC: 0,
                 UnitTypeId.VIKINGFIGHTER: 0,
                 UnitTypeId.BANSHEE: 0,
-                UnitTypeId.RAVEN:0,
+                UnitTypeId.RAVEN:1,
                 UnitTypeId.BATTLECRUISER: 0,
             }
             for unit in self.bot.units:
                 if unit.tag in self.bot.reconArray: # 유닛의 태그가 어레이에 포함되어있으면
                     unit_counts[unit.type_id] = unit_counts.get(unit.type_id, 0) + 1
 
-        elif self.bot.tactics == Tactics.NUKE:
+        elif self.bot.tactic_strategy == TacticStrategy.NUKE:
+            print("들어옴: 333333333")
             self.target_unit_counts = {
-                UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
-                UnitTypeId.MARINE: 0,
-                UnitTypeId.MARAUDER: 0, 
-                UnitTypeId.REAPER: 0,
-                UnitTypeId.GHOST: 3,
-                UnitTypeId.HELLION: 0,
-                UnitTypeId.SIEGETANK: 0,
-                UnitTypeId.THOR: 0,
-                UnitTypeId.MEDIVAC: 0,
-                UnitTypeId.VIKINGFIGHTER: 0,
-                UnitTypeId.BANSHEE: 0,
-                UnitTypeId.RAVEN:0,
-                UnitTypeId.BATTLECRUISER: 0,
+                UnitTypeId.GHOST: 1,
             }
             for unit in self.bot.units:
                 if unit.tag in self.bot.nukeArray: # 유닛의 태그가 어레이에 포함되어있으면
                     unit_counts[unit.type_id] = unit_counts.get(unit.type_id, 0) + 1
+
+        
 
         self.evoked = dict()
         
@@ -466,11 +453,11 @@ class AssignManager(object):
         #tactic이 combat이면 combatarray에 주고 나머지엔 combat에서 쓰는게 제외하고 할당 가능?ㅇㅇ
         units_tag = units_tag - self.bot.combatArray - self.bot.reconArray - self.bot.nukeArray
         
-        if self.bot.tactics == Tactics.ATTACK:
+        if self.bot.tactic_strategy == TacticStrategy.ATTACK or self.bot.tactic_strategy == TacticStrategy.MULE:
             self.bot.combatArray = self.bot.combatArray | units_tag
-        elif self.bot.tactics == Tactics.RECON:
+        elif self.bot.tactic_strategy == TacticStrategy.RECON:
             self.bot.reconArray = self.bot.reconArray | units_tag
-        elif self.bot.tactics == Tactics.NUKE:
+        elif self.bot.tactic_strategy == TacticStrategy.NUKE:
             self.bot.nukeArray = self.bot.nukeArray | units_tag
 
 # 사령부 주변에 적 없고 사령부 피 2/3 남았을때 지게로봇 소환
@@ -494,12 +481,11 @@ class Bot(sc2.BotAI):
                     torch.load(model_path, map_location='cpu')
                 )
             except Exception as exc:
-                import traceback; traceback.print_exc()
+                import traceback; traceback.print_exc() 
 
         self.step_manager = StepManager(self)
         self.combat_manager = CombatManager(self)
         self.assign_manager = AssignManager(self)
-        self.tactics = Tactics.TEST #Tactic은 ATTACK으로 초기화
         self.recon_manager = ReconManager(self)
         self.nuke_manager = NukeManager(self)
         self.ratio_manager = RatioManager(self)
@@ -519,6 +505,8 @@ class Bot(sc2.BotAI):
 
         self.tactic_strategy = TacticStrategy.ATTACK
 
+        self.cc = self.units(UnitTypeId.COMMANDCENTER).first  # 전체 유닛에서 사령부 검색
+
         self.step_manager.reset()
         self.combat_manager.reset()
         self.assign_manager.reset()
@@ -526,8 +514,6 @@ class Bot(sc2.BotAI):
         self.nuke_manager.reset()
         self.recon_manager.reset()
         self.assign_manager.assign()
-
-        self.tatics = Tactics.ATTACK #초기 tactic은 ATTACK으로 초기화
 
 
         # Learner에 join
@@ -537,7 +523,6 @@ class Bot(sc2.BotAI):
     async def on_step(self, iteration: int):
         """
         :param int iteration: 이번이 몇 번째 스텝인self.assign_manager = AssignManager(self)지를 인자로 넘겨 줌
-
         매 스텝마다 호출되는 함수
         주요 AI 로직은 여기에 구현
         """
@@ -546,43 +531,36 @@ class Bot(sc2.BotAI):
             return list()
 
         actions = list() # 이번 step에 실행할 액션 목록
+        #print("1111택틱: ", self.tactic_strategy)
 
         if self.time - self.last_step_time >= self.step_interval:
             self.tactic_strategy= self.set_strategy()
             self.last_step_time = self.time
-
-        ccs = self.units(UnitTypeId.COMMANDCENTER).idle  # 전체 유닛에서 사령부 검색
+            print("22222택틱: ", self.tactic_strategy)
         
+        
+
         if self.step_manager.step % 2 == 0:
             self.assign_manager.assign()
             
-            # -----사령부 명령 생성-----
-            if ccs.exists:  # 사령부가 하나이상 존재할 경우
-                cc = ccs.first  # 첫번째 사령부 선택
-                print("#####cc피: ", cc.health_percentage)
-                next_unit = self.ratio_manager.next_unit_select() #RatioManager에서 받아옴
-                if self.can_afford(next_unit) and self.time - self.ratio_manager.evoked.get((cc.tag, 'train'), 0) > 1.0:
-                    # 해당 유닛 생산 가능하고, 마지막 명령을 발행한지 1초 이상 지났음
-                    actions.append(cc.train(next_unit))
-                    self.ratio_manager.evoked[(cc.tag, 'train')] = self.time
-                    self.assign_manager.assign()
-                #if cc.health_percentage < 0.9:    #mule 테스트용 코드
-                #if self.units.exclude_type([UnitTypeId.COMMANDCENTER, UnitTypeId.MEDIVAC]).amount > 5:
-                    #self.tactics = Tactics(3)
-                    #actions += await self.mule_manager.step()
-                #else:
-                    #self.tactics = Tactics(4)
-        
-        # -----전략 변경 -----
-        if self.step_manager.step % 30 == 0:
-            i = randint(0, 3) #일단 랜덤으로 변경
-            self.tactics = Tactics(i)
-            print("전략 : ",self.tactics)
-            
+            next_unit = self.ratio_manager.next_unit_select() #RatioManager에서 받아옴
+            if self.can_afford(next_unit) and self.time - self.ratio_manager.evoked.get((self.cc.tag, 'train'), 0) > 1.0:
+                # 해당 유닛 생산 가능하고, 마지막 명령을 발행한지 1초 이상 지났음
+                actions.append(self.cc.train(next_unit))
+                self.ratio_manager.evoked[(self.cc.tag, 'train')] = self.time
+                self.assign_manager.assign()
+            #if cc.health_percentage < 0.9:    #mule 테스트용 코드
+            #if self.units.exclude_type([UnitTypeId.COMMANDCENTER, UnitTypeId.MEDIVAC]).amount > 5:
+                #self.tactics = Tactics(3)
+                #actions += await self.mule_manager.step()
+            #else:
+                #self.tactics = Tactics(4)
 
+
+        
         #actions += await self.attack_team_manager.step()
         actions += await self.recon_manager.step() 
-        actions += await self.combat_team_manager.step()   
+        actions += await self.combat_manager.step()   
         actions += await self.nuke_manager.step()
         
 
@@ -622,9 +600,21 @@ class Bot(sc2.BotAI):
                 value = value.item()
                 action = logp.exp().multinomial(num_samples=1).item()
 
-        economy_strategy = EconomyStrategy.to_type_id[action // len(ArmyStrategy)]
-        army_strategy = ArmyStrategy(action % len(ArmyStrategy))
-        return economy_strategy, army_strategy
+        tactic_strategy = TacticStrategy(action)
+        return tactic_strategy
+
+
+    def on_end(self, game_result):
+        if self.sock is not None:
+            score = 1. if game_result is Result.Victory else -1.
+            self.sock.send_multipart((
+                CommandType.SCORE, 
+                pickle.dumps(self.game_id),
+                pickle.dumps(score),
+            ))
+            self.sock.recv_multipart()
+
+
 
     '''def on_end(self, game_result):
         for tag in self.combatArray:
@@ -636,5 +626,3 @@ class Bot(sc2.BotAI):
         for tag in self.nukeArray:
             print("핵 : ", tag)
         print("-----")'''
-
-
