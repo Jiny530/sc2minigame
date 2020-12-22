@@ -537,8 +537,7 @@ class Bot(sc2.BotAI):
             self.tactic_strategy= self.set_strategy()
             self.last_step_time = self.time
             print("22222택틱: ", self.tactic_strategy)
-        
-        
+
 
         if self.step_manager.step % 2 == 0:
             self.assign_manager.assign()
