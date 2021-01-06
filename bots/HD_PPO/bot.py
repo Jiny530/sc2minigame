@@ -116,12 +116,6 @@ class NukeManager(object):
                     # 전술핵 발사 가능(생산완료)하고 고스트가 idle 상태이면, 적 본진에 전술핵 발사
                     actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
                     actions.append(ghosts.first(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=self.bot.enemy_start_locations[0]))
-<<<<<<< Updated upstream
-                    #print("핵쏨")
-=======
-                    self.bot.nukeGo += 1
-                    print("핵쏨, nukeGo =",self.bot.nukeGo)
->>>>>>> Stashed changes
 
         return actions
 
@@ -376,45 +370,6 @@ class CombatManager(object):
         return actions
 
 
-<<<<<<< Updated upstream
-class MuleManager(object):
-    """
-    지게로봇을 이용한 사령부 자힐 매니저
-    """
-    def __init__(self, bot_ai):
-        self.bot = bot_ai
-
-    async def step(self):
-        actions = list()
-
-        cc = self.bot.units(UnitTypeId.COMMANDCENTER).first
-        enemy_cc = self.bot.enemy_start_locations[0]
-        cc_abilities = await self.bot.get_available_abilities(cc)
-        mule = self.bot.units(UnitTypeId.MULE)
-        pos = cc.position.towards(enemy_cc.position, -5)
-
-        if cc.health_percentage < 0.8:
-            if mule.amount == 0:
-                #print("뮬없음")
-                if AbilityId.CALLDOWNMULE_CALLDOWNMULE in cc_abilities:
-                    # 지게로봇 생산가능하면 생산
-                    actions.append(cc(AbilityId.CALLDOWNMULE_CALLDOWNMULE, pos))
-                    #print("뮬생산")
-            elif mule.amount > 0:
-                #actions.append(mule.first(AbilityId.REPAIR_MULE(cc)))
-                actions.append(mule.first(AbilityId.EFFECT_REPAIR_MULE, cc))
-                #print("힐")
-        else: #택틱이 뮬인데 치료할거리가 없을경우->그럴수가 있나?
-            if mule.amount > 0:
-                mule_unit=mule.random
-                actions.append(mule_unit.move(pos))
-                print("이동")
-
-        return actions
-
-
-=======
->>>>>>> Stashed changes
 class StepManager(object):
     """
     스텝 레이트 유지를 담당하는 매니저
@@ -579,13 +534,9 @@ class RatioManager(object):
         #print("11111생산요청: ", self.bot.trainOrder)
         
         
-<<<<<<< Updated upstream
-        if self.bot.tactic_strategy == TacticStrategy.ATTACK or self.bot.tactic_strategy == TacticStrategy.MULE:
-=======
         """
         #if self.bot.tactic_strategy == TacticStrategy.ATTACK or self.bot.tactic_strategy == TacticStrategy.MULE:
         if self.bot.tactic_strategy == TacticStrategy.ATTACK:
->>>>>>> Stashed changes
             #print("들어옴: 111111")
             self.target_unit_counts = {
                 UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
@@ -652,13 +603,8 @@ class RatioManager(object):
         
         next_unit = list(self.target_unit_counts.keys())[unit_ratio.argmax()]  # 가장 부족한 유닛을 다음에 훈련
 
-<<<<<<< Updated upstream
-        #print("뽑힌애 : ",next_unit)
-        return next_unit
-=======
         print("ratio뽑힌애--------: ",next_unit)
         return next_unit"""
->>>>>>> Stashed changes
 
 
 class AssignManager(object):
@@ -810,12 +756,8 @@ class Bot(sc2.BotAI):
             #택틱 변경
             self.tactic_strategy, self.combat_strategy = self.set_strategy()
             self.last_step_time = self.time
-<<<<<<< Updated upstream
-            #print("22222택틱: ", self.tactic_strategy)
-=======
             print("-------택틱: ", self.tactic_strategy)
             print("-------컴뱃: ", self.combat_strategy)
->>>>>>> Stashed changes
 
             self.assign_manager.reassign() #이상하게 배치된 경우 있으면 제배치
 
