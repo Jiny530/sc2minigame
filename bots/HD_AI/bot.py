@@ -1,23 +1,36 @@
 
 __author__ = '이다영, 박혜진'
 
+import os
+
+os.environ['MKL_DEBUG_CPU_TYPE'] = '5'
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+
+import pathlib
+import pickle
 import time
 
+import nest_asyncio
 import numpy as np
-
 import sc2
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+from IPython import embed
+from sc2.data import Result
 from sc2.ids.ability_id import AbilityId
-from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.buff_id import BuffId
-
+from sc2.ids.unit_typeid import UnitTypeId
+from sc2.player import Bot as _Bot
+from sc2.position import Point2
+from termcolor import colored, cprint
+from sc2.position import Point2, Point3
 from enum import Enum
 from random import *
 
 
-# 주 부대에 속한 유닛 타입-지금 안씀
-ARMY_TYPES = (UnitTypeId.MARINE, UnitTypeId.MARAUDER, 
-    UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED,
-    UnitTypeId.MEDIVAC)
     
 class NukeManager(object):
     """
@@ -25,23 +38,22 @@ class NukeManager(object):
     """
     def __init__(self, bot_ai):
         self.bot = bot_ai
-
-    # 사령부 위치에 따라 유령 움직일 장소
-    def reset():
         self.pos=0
         self.ghost_pos1_x=32.5
         self.ghost_pos2_x=95.5
         self.ghost_pos=0
         self.enemy_pos=0
-        assign_position()
-    
-    def assign_position():
-        if self.enemy_start_locations[0].x == 95.5:
+
+    def reset(self):
+        if self.bot.enemy_start_locations[0].x == 95.5:
             self.ghost_pos = self.ghost_pos1_x
             self.enemy_pos= self.ghost_pos2_x
         else :
             self.ghost_pos = self.ghost_pos2_x
             self.enemy_pos= self.ghost_pos1_x
+        
+        
+        
 
     # 마지막 명령이 발행된지 10초가 넘었으면 리워드 -1?
     # 택틱마다 일정시간 지나도 명령 발행 안되면 리워드 -1 
@@ -91,41 +103,52 @@ class ReconManager(object):
     def __init__(self, bot_ai):
         self.bot = bot_ai
         self.perimeter_radious = 10
+        self.pos=0
+        self.pos1_x=32.5
+        self.pos2_x=95.5
 
     def reset(self):
-        self.perimeter_radious = 10
+        if self.bot.enemy_start_locations[0].x == 95.5:
+            self.pos = self.pos1_x
+        else :
+            self.pos = self.pos2_x
 
     # def position(self):
         
     async def step(self):
         actions = list()
+        recon_tag = self.bot.units.filter(
+            lambda unit: unit.tag in self.bot.reconArray
+        )
 
-        ravens = self.bot.units(UnitTypeId.RAVEN)
-
-        for unit in ravens: 
+        for unit in recon_tag: 
             # 근처에 적들이 있는지 파악
+            unit.move(Point2((self.pos,60)))
             threaten = self.bot.known_enemy_units.closer_than(
                     self.perimeter_radious, unit.position)
-
-            if unit.health_percentage > 0.8 and unit.energy >= 50:
-                print("유닛오더? ",unit.orders)
-                if threaten.amount > 0: # 근처에 적이 하나라도 있으면
-                    alert = 1
-                    if unit.orders and unit.orders[0].ability.id != AbilityId.RAVENBUILD_AUTOTURRET:
-                        closest_threat = threaten.closest_to(unit.position)
-                        pos = unit.position.towards(closest_threat.position, 5)
-                        pos = await self.bot.find_placement(
-                            UnitTypeId.AUTOTURRET, pos)
-                        order = unit(AbilityId.BUILDAUTOTURRET_AUTOTURRET, pos)
-                        actions.append(order)
+            
+            if unit.type_id == UnitTypeId.RAVEN:
+                if unit.health_percentage > 0.8 and unit.energy >= 50:
+                    print("유닛오더? ",unit.orders)
+                    if threaten.amount > 0: # 근처에 적이 하나라도 있으면
+                        alert = 1
+                        if unit.orders and unit.orders[0].ability.id != AbilityId.RAVENBUILD_AUTOTURRET:
+                            closest_threat = threaten.closest_to(unit.position)
+                            pos = unit.position.towards(closest_threat.position, 5)
+                            pos = await self.bot.find_placement(
+                                UnitTypeId.AUTOTURRET, pos)
+                            order = unit(AbilityId.BUILDAUTOTURRET_AUTOTURRET, pos)
+                            actions.append(order)
                 '''else:
                     if unit.distance_to(self.target) > 5:
                         order = unit.move(self.target)
                         actions.append(order)'''
-            else:
-                if unit.distance_to(self.bot.start_location) > 5:
-                    order = unit.move(self.bot.start_location)
-                    actions.append(order)
+
+            elif unit.type_id == UnitTypeId.MARINE:
+                if self.bot.known_enemy_units.exists:
+                    enemy_unit = self.bot.known_enemy_units.closest_to(unit)
+                    actions.append(unit.attack(enemy_unit))
+
         return actions
 
 
@@ -317,34 +340,18 @@ class RatioManager(object):
         """
         tactic에 따라 다음에 생산할 유닛 return
         """
+
+        unit_counts = dict()
         
         if self.bot.tactics == Tactics.ATTACK:
             self.target_unit_counts = {
                 UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
                 UnitTypeId.MARINE: 25,
-                UnitTypeId.MARAUDER: 2,
-                UnitTypeId.REAPER: 0,
-                UnitTypeId.GHOST: 0,
-                UnitTypeId.HELLION: 1,
-                UnitTypeId.SIEGETANK: 0,
-                UnitTypeId.THOR: 1,
-                UnitTypeId.MEDIVAC: 1,
-                UnitTypeId.VIKINGFIGHTER: 1,
-                UnitTypeId.BANSHEE: 1,
-                UnitTypeId.RAVEN: 0,
-                UnitTypeId.BATTLECRUISER: 1,
-            }
-            self.evoked = dict()
-
-        elif self.bot.tactics == Tactics.MULE:
-            self.target_unit_counts = {
-                UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
-                UnitTypeId.MARINE: 0,
                 UnitTypeId.MARAUDER: 0,
                 UnitTypeId.REAPER: 0,
                 UnitTypeId.GHOST: 0,
                 UnitTypeId.HELLION: 0,
-                UnitTypeId.SIEGETANK: 0,
+                UnitTypeId.SIEGETANK: 5,
                 UnitTypeId.THOR: 0,
                 UnitTypeId.MEDIVAC: 0,
                 UnitTypeId.VIKINGFIGHTER: 0,
@@ -352,51 +359,17 @@ class RatioManager(object):
                 UnitTypeId.RAVEN: 0,
                 UnitTypeId.BATTLECRUISER: 0,
             }
-            self.evoked = dict()
-
-        elif self.bot.tactics == Tactics.TEST:
-            self.target_unit_counts = {
-                UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
-                UnitTypeId.MARINE: 0,
-                UnitTypeId.MARAUDER: 0,
-                UnitTypeId.REAPER: 0,
-                UnitTypeId.GHOST: 0,
-                UnitTypeId.HELLION: 0,
-                UnitTypeId.SIEGETANK: 0,
-                UnitTypeId.THOR: 0,
-                UnitTypeId.MEDIVAC: 0,
-                UnitTypeId.VIKINGFIGHTER: 0,
-                UnitTypeId.BANSHEE: 0,
-                UnitTypeId.RAVEN: 0,
-                UnitTypeId.BATTLECRUISER: 0,
-            }
-            self.evoked = dict()
+            for unit in self.bot.units:
+                if unit.tag in self.bot.combatArray: # 유닛의 태그가 어레이에 포함되어있으면
+                    unit_counts[unit.type_id] = unit_counts.get(unit.type_id, 0) + 1
             
         elif self.bot.tactics == Tactics.RECON:
             self.target_unit_counts = {
                 UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
-                UnitTypeId.MARINE: 10,
-                UnitTypeId.MARAUDER: 0, 
-                UnitTypeId.REAPER: 5,
-                UnitTypeId.GHOST: 0,
-                UnitTypeId.HELLION: 0,
-                UnitTypeId.SIEGETANK: 3,
-                UnitTypeId.THOR: 0,
-                UnitTypeId.MEDIVAC: 0,
-                UnitTypeId.VIKINGFIGHTER: 0,
-                UnitTypeId.BANSHEE: 0,
-                UnitTypeId.RAVEN:3,
-                UnitTypeId.BATTLECRUISER: 0,
-            }
-            self.evoked = dict()
-
-        elif self.bot.tactics == Tactics.NUKE:
-            self.target_unit_counts = {
-                UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
                 UnitTypeId.MARINE: 0,
                 UnitTypeId.MARAUDER: 0, 
-                UnitTypeId.REAPER: 0,
-                UnitTypeId.GHOST: 1,
+                UnitTypeId.REAPER: 10,
+                UnitTypeId.GHOST: 0,
                 UnitTypeId.HELLION: 0,
                 UnitTypeId.SIEGETANK: 0,
                 UnitTypeId.THOR: 0,
@@ -406,14 +379,33 @@ class RatioManager(object):
                 UnitTypeId.RAVEN:0,
                 UnitTypeId.BATTLECRUISER: 0,
             }
-            self.evoked = dict()
+            for unit in self.bot.units:
+                if unit.tag in self.bot.reconArray: # 유닛의 태그가 어레이에 포함되어있으면
+                    unit_counts[unit.type_id] = unit_counts.get(unit.type_id, 0) + 1
 
+        elif self.bot.tactics == Tactics.NUKE:
+            self.target_unit_counts = {
+                UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
+                UnitTypeId.MARINE: 0,
+                UnitTypeId.MARAUDER: 0, 
+                UnitTypeId.REAPER: 0,
+                UnitTypeId.GHOST: 3,
+                UnitTypeId.HELLION: 0,
+                UnitTypeId.SIEGETANK: 0,
+                UnitTypeId.THOR: 0,
+                UnitTypeId.MEDIVAC: 0,
+                UnitTypeId.VIKINGFIGHTER: 0,
+                UnitTypeId.BANSHEE: 0,
+                UnitTypeId.RAVEN:0,
+                UnitTypeId.BATTLECRUISER: 0,
+            }
+            for unit in self.bot.units:
+                if unit.tag in self.bot.nukeArray: # 유닛의 태그가 어레이에 포함되어있으면
+                    unit_counts[unit.type_id] = unit_counts.get(unit.type_id, 0) + 1
 
-
-        # -----부족한 유닛 숫자 계산-----
-        unit_counts = dict()
-        for unit in self.bot.units:
-            unit_counts[unit.type_id] = unit_counts.get(unit.type_id, 0) + 1
+        self.evoked = dict()
+        
+        
         
         ### 여기서 unit_counts에 각각 다른 유닛집단 들어가야하지않나??
 
@@ -425,6 +417,7 @@ class RatioManager(object):
         
         next_unit = list(self.target_unit_counts.keys())[unit_ratio.argmax()]  # 가장 부족한 유닛을 다음에 훈련
 
+        print("뽑힌애 : ",next_unit)
         return next_unit
 
 
@@ -439,11 +432,15 @@ class AssignManager(object):
     def reset(self):
         pass
 
-    def assign(self, manager):
+    def assign(self):
 
 
         units_tag = self.bot.units.tags #전체유닛
-        
+        #  and연산으로 살아있는 유닛으로만 구성
+        self.bot.combatArray = self.bot.combatArray & units_tag 
+        self.bot.reconArray = self.bot.reconArray & units_tag
+        self.bot.nukeArray = self.bot.nukeArray & units_tag
+
         #tactic이 combat이면 combatarray에 주고 나머지엔 combat에서 쓰는게 제외하고 할당 가능?ㅇㅇ
         units_tag = units_tag - self.bot.combatArray - self.bot.reconArray - self.bot.nukeArray
         
@@ -485,9 +482,10 @@ class Bot(sc2.BotAI):
         self.step_manager.reset()
         self.combat_manager.reset()
         self.assign_manager.reset()
-        self.assign_manager.assign(self.combat_manager)
+        self.assign_manager.assign()
         self.nuke_manager.reset()
-
+        self.recon_manager.reset()
+        self.assign_manager.assign()
 
         self.tatics = Tactics.ATTACK #초기 tactic은 ATTACK으로 초기화
         
@@ -507,7 +505,7 @@ class Bot(sc2.BotAI):
         ccs = self.units(UnitTypeId.COMMANDCENTER).idle  # 전체 유닛에서 사령부 검색
         
         if self.step_manager.step % 2 == 0:
-            self.assign_manager.assign(self.combat_team_manager)
+            self.assign_manager.assign()
             
             # -----사령부 명령 생성-----
             if ccs.exists:  # 사령부가 하나이상 존재할 경우
@@ -518,7 +516,7 @@ class Bot(sc2.BotAI):
                     # 해당 유닛 생산 가능하고, 마지막 명령을 발행한지 1초 이상 지났음
                     actions.append(cc.train(next_unit))
                     self.ratio_manager.evoked[(cc.tag, 'train')] = self.time
-                    self.assign_manager.assign(self.combat_team_manager)
+                    self.assign_manager.assign()
                 #if cc.health_percentage < 0.9:    #mule 테스트용 코드
                 #if self.units.exclude_type([UnitTypeId.COMMANDCENTER, UnitTypeId.MEDIVAC]).amount > 5:
                     #self.tactics = Tactics(3)
@@ -528,13 +526,14 @@ class Bot(sc2.BotAI):
         
         # -----전략 변경 -----
         if self.step_manager.step % 30 == 0:
-            i = randint(0, 3) #일단 랜덤으로 변경
+            i = randint(0, 4) #일단 랜덤으로 변경
             self.tactics = Tactics(i)
-
+            print("전략 : ",self.tactics)
+            
 
         #actions += await self.attack_team_manager.step()
-        #actions += await self.defense_team_manager.step() 
-        actions += await self.combat_manager.step()   
+        actions += await self.recon_manager.step() 
+        actions += await self.combat_team_manager.step()   
         actions += await self.nuke_manager.step()
         
 
