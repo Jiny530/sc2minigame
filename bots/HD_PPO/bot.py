@@ -66,6 +66,8 @@ class NukeManager(object):
         self.ghost_pos2_x=95.5
         self.ghost_pos=0
         self.enemy_pos=0
+        self.dead=0
+        self.ghost_tag=0
 
     def reset(self):
         if self.bot.enemy_start_locations[0].x == 95.5:
@@ -74,9 +76,6 @@ class NukeManager(object):
         else :
             self.ghost_pos = self.ghost_pos2_x
             self.enemy_pos= self.ghost_pos1_x
-        
-        
-        
 
     # 마지막 명령이 발행된지 10초가 넘었으면 리워드 -1?
     # 택틱마다 일정시간 지나도 명령 발행 안되면 리워드 -1 
@@ -89,24 +88,58 @@ class NukeManager(object):
         ghosts = self.bot.units(UnitTypeId.GHOST)
         
         if ghosts.amount > 0:
-            ghost = ghosts.first
+            if self.dead == 0:
+                self.dead = 3 #고스트 아직 안죽음
+            ghost = ghosts.first #고스트는 딱 하나라고 가정
+            
             if AbilityId.BUILD_NUKE in cc_abilities:
                 # 전술핵 생산 가능(자원이 충분)하면 전술핵 생산
                 actions.append(cc(AbilityId.BUILD_NUKE))
-                print(ghosts.first.position)
+                #print(ghosts.first.position)
 
-            if ghost.distance_to(Point2((self.ghost_pos,55))) > 3 and self.pos == 0:
-                actions.append(ghost.move(Point2((self.ghost_pos,55))))
-                self.pos=1
+            if self.dead==1: #윗길에서 죽었으면 아랫길로
+                self.bot.nuke_strategy=2
+            elif self.dead==2: #아랫길에서 죽었으면 윗길로
+                self.bot.nuke_strategy=1
+            
+            self.dead = 3
 
-            if ghost.distance_to(Point2((self.ghost_pos,55))) == 0 and self.pos == 1:
-                print(ghost.position)
-                actions.append(ghosts.first.move(Point2((self.enemy_pos,55))))
-                self.pos=2
+            if self.bot.nuke_strategy == 1: # 위로 가라
+                
+                if ghost.distance_to(Point2((self.ghost_pos,55))) > 3 and self.pos == 0:
+                    actions.append(ghost.move(Point2((self.ghost_pos,55))))
+                    self.pos=1
+                    '''
+                    # 이전에 위에서 죽은적 있으면 리워드 -5 // 이걸 전략 막 선택했을때 줘야하나?
+                    if self.dead == 1:
+                        self.bot.reward -= 0.1
+                        '''
 
-            if ghost.distance_to(Point2((self.enemy_pos,55))) < 3:
-                print(ghost.position)
-                self.pos=3
+                if ghost.distance_to(Point2((self.ghost_pos,55))) == 0 and self.pos == 1:
+                    #print(ghost.position)
+                    actions.append(ghosts.first.move(Point2((self.enemy_pos,55))))
+                    self.pos=2
+
+                if ghost.distance_to(Point2((self.enemy_pos,55))) < 3:
+                    #print(ghost.position)
+                    self.pos=3
+            
+            elif self.bot.nuke_strategy == 2: # 아래로 가라
+                if ghost.distance_to(Point2((self.ghost_pos,10))) > 3 and self.pos == 0:
+                    actions.append(ghost.move(Point2((self.ghost_pos,10))))
+                    self.pos=1
+                    if self.dead == 2:
+                        self.bot.reward -= 0.1
+
+                if ghost.distance_to(Point2((self.ghost_pos,10))) == 0 and self.pos == 1:
+                    #print(ghost.position)
+                    actions.append(ghosts.first.move(Point2((self.enemy_pos,10))))
+                    self.pos=2
+
+                if ghost.distance_to(Point2((self.enemy_pos,10))) < 3:
+                    #print(ghost.position)
+                    self.pos=3
+
 
             if self.pos==3 :
                 ghost_abilities = await self.bot.get_available_abilities(ghosts.first)
@@ -115,6 +148,14 @@ class NukeManager(object):
                     actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
                     actions.append(ghosts.first(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=self.bot.enemy_start_locations[0]))
                     print("핵쏨")
+
+        elif ghosts.amount==0 and self.dead==3 : #고스트 죽음 (amount==0)
+            self.pos=0
+            if self.bot.nuke_strategy == 1: #윗길로 갔었으면
+                self.dead=1 #위에서죽음 표시
+            else:
+                self.dead=2 #아랫길이었다면 아래서 죽음 표시
+        
 
         return actions
 
@@ -125,16 +166,16 @@ class ReconManager(object):
     """
     def __init__(self, bot_ai):
         self.bot = bot_ai
-        self.perimeter_radious = 10
+        self.perimeter_radious = 5
         self.pos=0
         self.pos1_x=32.5
         self.pos2_x=95.5
 
     def reset(self):
         if self.bot.enemy_start_locations[0].x == 95.5:
-            self.pos = self.pos1_x
+            self.pos = self.pos1_x - 5
         else :
-            self.pos = self.pos2_x
+            self.pos = self.pos2_x + 5
 
     # def position(self):
         
@@ -143,14 +184,15 @@ class ReconManager(object):
 
         for unit in self.bot.units:
             if unit.tag in self.bot.reconArray:
-                # 근처에 적들이 있는지 파악
-                actions.append(unit.move(Point2((self.pos,40))))
-                threaten = self.bot.known_enemy_units.closer_than(
-                        self.perimeter_radious, unit.position)
                 
                 if unit.type_id == UnitTypeId.RAVEN:
+                    
+                    # 근처에 적들이 있는지 파악
+                    actions.append(unit.move(Point2((self.pos,30))))
+                    threaten = self.bot.known_enemy_units.closer_than(
+                        self.perimeter_radious, unit.position)
                     if unit.health_percentage > 0.8 and unit.energy >= 50:
-                        print("유닛오더? ",unit.orders)
+                        #print("유닛오더? ",unit.orders)
                         if threaten.amount > 0: # 근처에 적이 하나라도 있으면
                             alert = 1
                             if unit.orders and unit.orders[0].ability.id != AbilityId.RAVENBUILD_AUTOTURRET:
@@ -166,9 +208,15 @@ class ReconManager(object):
                             actions.append(order)'''
 
                 elif unit.type_id == UnitTypeId.MARINE:
+                    
+                    # 근처에 적들이 있는지 파악
+                    actions.append(unit.move(Point2((self.pos,60))))
+                    threaten = self.bot.known_enemy_units.closer_than(
+                        self.perimeter_radious, unit.position)
                     if self.bot.known_enemy_units.exists:
                         enemy_unit = self.bot.known_enemy_units.closest_to(unit)
                         actions.append(unit.attack(enemy_unit))
+                        self.bot.reward+=1
 
         return actions
 
@@ -218,7 +266,7 @@ class CombatManager(object):
 
                 ##-----전투 유닛 전체-----
                 if unit.type_id is not UnitTypeId.MEDIVAC:
-                    #print(combat_units.amount)
+                    ##print(combat_units.amount)
                     if len(self.bot.combatArray) > 20 and self.bot.units.of_type([UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK]).amount > 1:
                         #unit.move(Point2((self.pos,60)))
                         # 전투가능한 유닛 수가 20을 넘으면 + 탱크 2대 이상 적 본진으로 공격              
@@ -260,31 +308,18 @@ class CombatManager(object):
                                     order = unit(AbilityId.UNSIEGE_UNSIEGE)
                                     actions.append(order)
             
-                                
-
-
             ##-----비전투 유닛==메디박-----
             if unit.type_id is UnitTypeId.MEDIVAC:
                 ##힐을 가장 우선시
                 if wounded_units.exists:
                     wounded_unit = wounded_units.closest_to(unit)  # 가장 가까운 체력이 100% 이하인 유닛
                     actions.append(unit(AbilityId.MEDIVACHEAL_HEAL, wounded_unit))  # 유닛 치료 명령
-                    #print(wounded_unit.name, "을 회복중")
+                    print(wounded_unit.name, "을 회복중")
                 elif len(self.bot.combatArray) < 1 :
                     actions.append(unit.move(self.bot.cc - 5))
                 else: 
                     actions.append(unit.move(self.bot.units.closest_to(unit)))
                     #print("대기중")
-
-        # -----유닛 명령 생성 끝-----
-        return actions
-
-
-class MuleManager(object):
-    """
-    지게로봇을 이용한 사령부 자힐 매니저
-    """
-    def __init__(self, bot_ai):
         self.bot = bot_ai
 
     async def step(self):
@@ -298,7 +333,7 @@ class MuleManager(object):
 
         if cc.health_percentage < 0.8:
             if mule.amount == 0:
-                print("뮬없음")
+                #print("뮬없음")
                 if AbilityId.CALLDOWNMULE_CALLDOWNMULE in cc_abilities:
                     # 지게로봇 생산가능하면 생산
                     actions.append(cc(AbilityId.CALLDOWNMULE_CALLDOWNMULE, pos))
@@ -311,7 +346,7 @@ class MuleManager(object):
             if mule.amount > 0:
                 mule_unit=mule.random
                 actions.append(mule_unit.move(pos))
-                print("이동")
+                #print("이동")
 
         return actions
 
@@ -359,8 +394,8 @@ class RatioManager(object):
 
         unit_counts = dict()
         
-        if self.bot.tactic_strategy == TacticStrategy.ATTACK or self.bot.tactic_strategy == TacticStrategy.MULE:
-            print("들어옴: 111111")
+        if self.bot.tactic_strategy == TacticStrategy.ATTACK :
+            #print("들어옴: 111111")
             self.target_unit_counts = {
                 UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
                 UnitTypeId.MARINE: 25,
@@ -381,7 +416,7 @@ class RatioManager(object):
                     unit_counts[unit.type_id] = unit_counts.get(unit.type_id, 0) + 1
             
         elif self.bot.tactic_strategy == TacticStrategy.RECON:
-            print("들어옴: 2222222")
+            #print("들어옴: 2222222")
             self.target_unit_counts = {
                 UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
                 UnitTypeId.MARINE: 2,
@@ -402,8 +437,9 @@ class RatioManager(object):
                     unit_counts[unit.type_id] = unit_counts.get(unit.type_id, 0) + 1
 
         elif self.bot.tactic_strategy == TacticStrategy.NUKE:
-            print("들어옴: 333333333")
+            #print("들어옴: 333333333")
             self.target_unit_counts = {
+                UnitTypeId.COMMANDCENTER: 0,
                 UnitTypeId.GHOST: 1,
             }
             for unit in self.bot.units:
@@ -430,7 +466,7 @@ class RatioManager(object):
         return next_unit
 
 
-class AssignManager(object):
+class AssignManager(object): #뜯어고쳐야함
     """
     유닛을 부대에 배치하는 매니저
     """
@@ -453,7 +489,7 @@ class AssignManager(object):
         #tactic이 combat이면 combatarray에 주고 나머지엔 combat에서 쓰는게 제외하고 할당 가능?ㅇㅇ
         units_tag = units_tag - self.bot.combatArray - self.bot.reconArray - self.bot.nukeArray
         
-        if self.bot.tactic_strategy == TacticStrategy.ATTACK or self.bot.tactic_strategy == TacticStrategy.MULE:
+        if self.bot.tactic_strategy == TacticStrategy.ATTACK :
             self.bot.combatArray = self.bot.combatArray | units_tag
         elif self.bot.tactic_strategy == TacticStrategy.RECON:
             self.bot.reconArray = self.bot.reconArray | units_tag
@@ -489,11 +525,12 @@ class Bot(sc2.BotAI):
         self.recon_manager = ReconManager(self)
         self.nuke_manager = NukeManager(self)
         self.ratio_manager = RatioManager(self)
-        self.mule_manager = MuleManager(self)
         #부대별 유닛 array
         self.combatArray = set()
         self.reconArray = set()
         self.nukeArray = set()
+        self.reward = 0 
+        self.nuke_strategy=0
         
 
     def on_start(self):
@@ -531,12 +568,13 @@ class Bot(sc2.BotAI):
             return list()
 
         actions = list() # 이번 step에 실행할 액션 목록
-        #print("1111택틱: ", self.tactic_strategy)
 
         if self.time - self.last_step_time >= self.step_interval:
             self.tactic_strategy= self.set_strategy()
             self.last_step_time = self.time
-            print("22222택틱: ", self.tactic_strategy)
+            print("택틱: ", self.tactic_strategy)
+            if self.tactic_strategy == TacticStrategy.NUKE:
+                self.nuke_strategy = randint(1,2)
 
 
         if self.step_manager.step % 2 == 0:
@@ -605,7 +643,7 @@ class Bot(sc2.BotAI):
 
     def on_end(self, game_result):
         if self.sock is not None:
-            score = 1. if game_result is Result.Victory else -1.
+            score = self.reward + 5. if game_result is Result.Victory else self.reward - 5.
             self.sock.send_multipart((
                 CommandType.SCORE, 
                 pickle.dumps(self.game_id),
