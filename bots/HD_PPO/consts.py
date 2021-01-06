@@ -21,14 +21,11 @@ class TacticStrategy(Enum):
     ATTACK = 0 
     RECON = 1
     NUKE = 2
-    #MULE = 3
-
-
+    
 class CombatStrategy(Enum):
     OFFENSE = 0 
     DEFENSE = 1
     WAIT = 2
-
 
 Sample = namedtuple('Sample', 's, a, r, done, logp, value')
 
