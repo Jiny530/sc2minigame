@@ -648,78 +648,6 @@ class RatioManager(object):
         #print("11111생산요청: ", self.bot.trainOrder)
 
         
-        """
-        if self.bot.tactic_strategy == TacticStrategy.ATTACK:
-            #print("들어옴: 111111")
-            self.target_unit_counts = {
-                UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
-                UnitTypeId.MARINE: 25,
-                UnitTypeId.MARAUDER: 0,
-                UnitTypeId.REAPER: 0,
-                UnitTypeId.GHOST: 0,
-                UnitTypeId.HELLION: 0,
-                UnitTypeId.SIEGETANK: 2,
-                UnitTypeId.THOR: 0,
-                UnitTypeId.MEDIVAC: 0,
-                UnitTypeId.VIKINGFIGHTER: 0,
-                UnitTypeId.BANSHEE: 0,
-                UnitTypeId.RAVEN: 0,
-                UnitTypeId.BATTLECRUISER: 0,
-            }
-            for unit in self.bot.units:
-                if unit.tag in self.bot.combatArray: # 유닛의 태그가 어레이에 포함되어있으면
-                    unit_counts[unit.type_id] = unit_counts.get(unit.type_id, 0) + 1
-            
-        elif self.bot.tactic_strategy == TacticStrategy.RECON:
-            #print("들어옴: 2222222")
-            self.target_unit_counts = {
-                UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
-                UnitTypeId.MARINE: 2,
-                UnitTypeId.MARAUDER: 0, 
-                UnitTypeId.REAPER: 0,
-                UnitTypeId.GHOST: 0,
-                UnitTypeId.HELLION: 0,
-                UnitTypeId.SIEGETANK: 0,
-                UnitTypeId.THOR: 0,
-                UnitTypeId.MEDIVAC: 0,
-                UnitTypeId.VIKINGFIGHTER: 0,
-                UnitTypeId.BANSHEE: 0,
-                UnitTypeId.RAVEN:1,
-                UnitTypeId.BATTLECRUISER: 0,
-            }
-            for unit in self.bot.units:
-                if unit.tag in self.bot.reconArray: # 유닛의 태그가 어레이에 포함되어있으면
-                    unit_counts[unit.type_id] = unit_counts.get(unit.type_id, 0) + 1
-
-        elif self.bot.tactic_strategy == TacticStrategy.NUKE:
-            #print("들어옴: 333333333")
-            self.target_unit_counts = {
-                UnitTypeId.COMMANDCENTER: 0,
-                UnitTypeId.GHOST: 1,
-            }
-            for unit in self.bot.units:
-                if unit.tag in self.bot.nukeArray: # 유닛의 태그가 어레이에 포함되어있으면
-                    unit_counts[unit.type_id] = unit_counts.get(unit.type_id, 0) + 1
-
-        
-
-        self.evoked = dict()
-        
-        
-        
-        ### 여기서 unit_counts에 각각 다른 유닛집단 들어가야하지않나??
-
-        target_unit_counts = np.array(list(self.target_unit_counts.values()))
-        target_unit_ratio = target_unit_counts / (target_unit_counts.sum() + 1e-6)  # 목표로 하는 유닛 비율
-        current_unit_counts = np.array([unit_counts.get(tid, 0) for tid in self.target_unit_counts.keys()])
-        current_unit_ratio = current_unit_counts / (current_unit_counts.sum() + 1e-6)  # 현재 유닛 비율
-        unit_ratio = (target_unit_ratio - current_unit_ratio).clip(0, 1)  # 목표 - 현재 유닛 비율
-        
-        next_unit = list(self.target_unit_counts.keys())[unit_ratio.argmax()]  # 가장 부족한 유닛을 다음에 훈련
-
-        print("ratio뽑힌애--------: ",next_unit)
-        return next_unit"""
-
 
 class AssignManager(object): #뜯어고쳐야함
     """
@@ -902,9 +830,7 @@ class Bot(sc2.BotAI):
         if self.time - self.last_step_time >= self.step_interval:
             #택틱 변경
             self.product_strategy, self.nuke_strategy = self.set_strategy()
-            self.last_step_time = self.time
-            print("-------택틱: ", self.product_strategy)
-
+            #print("-------생산택틱: ", self.product_strategy)
 
             self.assign_manager.reassign() #이상하게 배치된 경우 있으면 제배치
 
@@ -913,6 +839,8 @@ class Bot(sc2.BotAI):
                 self.bigDamage += 1
                 print("한방딜 ㄱ: ", self.bigDamage, "딜량: ", self.state.score.total_damage_dealt_life - self.previous_Damage)
             self.previous_Damage = self.state.score.total_damage_dealt_life #갱신 """
+            
+            self.last_step_time = self.time
         
 
         #생산 명령이 처리되었다면
