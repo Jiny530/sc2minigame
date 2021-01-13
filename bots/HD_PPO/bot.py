@@ -29,8 +29,7 @@ from sc2.position import Point2, Point3
 from enum import Enum
 from random import *
 
-import queue
-from .consts import CommandType, TacticStrategy, CombatStrategy
+from .consts import CommandType, ProductStrategy, NukeStrategy
 
 nest_asyncio.apply()
 
@@ -39,22 +38,26 @@ class Model(nn.Module):
     def __init__(self):
         super().__init__()
          #5가 state 개수, 12가 유닛종류(economy)
-        self.fc1 = nn.Linear(6, 64)
+        self.fc1 = nn.Linear(8, 64)
         self.norm1 = nn.LayerNorm(64)
         self.fc2 = nn.Linear(64, 64)
         self.norm2 = nn.LayerNorm(64)
         self.vf = nn.Linear(64, 1)
-        self.tactic_head = nn.Linear(64, len(TacticStrategy))
-        self.combat_head = nn.Linear(64, len(CombatStrategy))
+        self.product_head = nn.Linear(64, len(ProductStrategy))
+        self.nuke_head = nn.Linear(64, len(NukeStrategy))
+        #self.mule_head = nn.Linear(64, len(MuleStrategy))
+
 
     def forward(self, x):
         x = F.relu(self.norm1(self.fc1(x)))
         x = F.relu(self.norm2(self.fc2(x)))
         value = self.vf(x)
-        tactic_logp = torch.log_softmax(self.tactic_head(x), -1)
-        combat_logp = torch.log_softmax(self.combat_head(x), -1)
+        product_logp = torch.log_softmax(self.product_head(x), -1)
+        nuke_logp = torch.log_softmax(self.nuke_head(x), -1)
+        #mule_logp = torch.log_softmax(self.mule_head(x), -1)
         bz = x.shape[0]
-        logp = (tactic_logp.view(bz, -1, 1) + combat_logp.view(bz, 1, -1)).view(bz, -1)
+        logp = (product_logp.view(bz, -1, 1) + nuke_logp.view(bz, 1, -1)).view(bz, -1)
+        #logp = (product_logp.view(bz, 1, -1, -1) + nuke_logp.view(bz, -1, 1, -1) + mule_logp.view(bz, -1, -1, 1)).view(bz, -1)
         return value, logp
 
     
@@ -89,16 +92,14 @@ class NukeManager(object):
         cc_abilities = await self.bot.get_available_abilities(cc)
         ghosts = self.bot.units(UnitTypeId.GHOST)
         
+        if ghosts.amount == 0:
+            actions.append(cc.train(UnitTypeId.GHOST))
+
         if ghosts.amount > 0:
             if self.dead == 0:
                 self.dead = 3 #고스트 아직 안죽음
             ghost = ghosts.first #고스트는 딱 하나라고 가정
             
-            if ghost.distance_to(Point2((self.ghost_pos,30))) > 10: # 기지와 멀리 떨어졌을때 적 발견시 은폐
-                threaten = self.bot.known_enemy_units.closer_than(5, ghost.position)
-                if threaten.amount > 0:
-                    actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
-
             if AbilityId.BUILD_NUKE in cc_abilities:
                 # 전술핵 생산 가능(자원이 충분)하면 전술핵 생산
                 actions.append(cc(AbilityId.BUILD_NUKE))
@@ -166,7 +167,6 @@ class NukeManager(object):
 
         elif ghosts.amount==0 and self.dead==3 : #고스트 죽음 (amount==0)
             self.pos=0
-            self.bot.die_count+=1
             if self.bot.nuke_strategy == 1: #윗길로 갔었으면
                 self.dead=1 #위에서죽음 표시
             else:
@@ -184,42 +184,42 @@ class ReconManager(object):
         self.bot = bot_ai
         self.a=0
         self.patrol_pos=list()
-        self.p=queue.Queue()
+        #self.p=queue.Queue()
 
     def reset(self):
         if self.bot.enemy_start_locations[0].x == 95.5:
-            self.patrol_pos = [Point2((25.5, 37)), Point2((39.5, 37)), Point2((39.5, 23)), Point2((25.5, 23))]
+            self.patrol_pos = [Point2((32.5, 35)), Point2((37.5, 30)), Point2((32.5, 25)), Point2((27.5, 30))]
         else :
-            self.patrol_pos = [Point2((102.5, 37)), Point2((88.5, 37)), Point2((88.5, 23)), Point2((102.5, 23))]
+            self.patrol_pos = [Point2((95.5, 35)), Point2((105.5, 30)), Point2((95.5, 25)), Point2((90.5, 30))]
         
-        self.p = queue.Queue() #tlqkf 왜안돼
-        self.p.put(self.patrol_pos[2])
-        self.p.put(self.patrol_pos[3])
-        self.p.put(self.patrol_pos[0])
+        #self.p = queue.Queue() #tlqkf 왜안돼
+        #self.p.put(self.patrol_pos[2])
+        #self.p.put(self.patrol_pos[3])
+        #self.p.put(self.patrol_pos[0])
 
 
     async def step(self):
-        actions = list() # 이번 step에 실행할 액션 목록
+        actions = list()
 
-        cc = self.bot.units(UnitTypeId.COMMANDCENTER).first
-        cc_abilities = await self.bot.get_available_abilities(cc)
         ravens = self.bot.units(UnitTypeId.RAVEN)
         
         if ravens.amount == 0:
-            if self.bot.can_afford(UnitTypeId.RAVEN):
+            '''
+            if self.can_afford(UnitTypeId.RAVEN):
                 # 고스트가 하나도 없으면 고스트 훈련
                 actions.append(cc.train(UnitTypeId.RAVEN))
+            '''
             if self.bot.die_alert == 2:
                 self.bot.die_alert = 1 # 리콘이 죽었다 => 다른곳에서 써먹을 플래그
 
-
         elif ravens.amount > 0:
             raven = ravens.first
-            
+            self.bot.last_pos = raven.position
+
             if self.bot.die_alert == 0 or self.bot.die_alert == 1:
                 self.bot.die_alert = 2 # 리콘 현재 존재함
             
-            if self.bot.is_ghost == 0:
+            if self.bot.enemy_alert == 0: #정찰
                 if self.a==0 :
                     actions.append(raven.move(self.patrol_pos[0]))
                     if raven.distance_to(self.patrol_pos[0]) < 1:
@@ -238,42 +238,30 @@ class ReconManager(object):
                         actions.append(raven.patrol(self.patrol_pos[0]))
                         self.a=0
             
+            '''
+            if raven.distance_to(self.patrol_pos[0]) == 0 :
+                actions.append(raven.patrol(self.patrol_pos[1]))#,self.patrol_pos[2]))#self.p))
+            '''
+
             threaten = self.bot.known_enemy_units.closer_than(5, raven.position)
             if threaten.amount > 0:
+                self.bot.enemy_alert=1 # 에너미 존재
                 target = threaten.closest_to(raven.position)
-                self.bot.last_pos = target.position
-                print(self.bot.last_pos)
-                unit = threaten(UnitTypeId.GHOST)
-                
-                if unit.amount > 0:
-                    print(unit.amount)
-                    self.bot.is_ghost = 1 # 핵 쏘러 옴
-                    target = unit.first
-                    self.bot.last_pos = target.position
-                    print(self.bot.last_pos)
+                for unit in threaten:
+                    if unit == UnitTypeId.GHOST:
+                        self.bot.is_ghost = 1 # 핵 쏘러 옴
+                        target = unit
+                pos = raven.position.towards(target.position, 5)
+                pos = await self.bot.find_placement(UnitTypeId.AUTOTURRET, pos)
+                actions.append(raven(AbilityId.BUILDAUTOTURRET_AUTOTURRET, pos))
 
-                if raven.distance_to(self.front) > 2 or self.bot.is_ghost: #정면방향이 아니거나, 고스트가 있을경우만 공격
-                    self.bot.enemy_alert=1 # 에너미 존재
-                    self.bot.last_pos = target.position
-                    pos = raven.position.towards(target.position, 5)
-                    pos = await self.bot.find_placement(UnitTypeId.AUTOTURRET, pos)
-                    actions.append(raven(AbilityId.BUILDAUTOTURRET_AUTOTURRET, pos))
-
-            elif threaten.amount == 0 and self.bot.enemy_alert==1: #평범하게 적들 해치운 경우
+            elif threaten.amount ==0 and self.bot.enemy_alert==1:
                 self.bot.enemy_alert=0 # 에너미 해치움
-                raven.distance_to(self.patrol_pos[self.a])
                 if self.bot.is_ghost == 1:
                     print("유령해치움")
                     self.bot.is_ghost == 0
                 else :
                     print("에너미해치움")
-                    
-            elif self.bot.is_ghost: # 정면방향 고스트였을경우
-                unit = threaten(UnitTypeId.GHOST)
-                if unit.amount == 0:
-                    self.bot.is_ghost = 0
-                    self.enemy_alert=0
-                    raven.distance_to(self.patrol_pos[self.a])
             
         return actions
 
@@ -292,46 +280,51 @@ class CombatManager(object):
         actions = list()
 
         ##-----변수, 그룹 등 선언-----
+        #0: defense / 1: offense - 고스트 사망 횟수에 따라 달라짐
+        mode = 0 #시작때는 defense
         '''combat_tag = self.bot.units.filter(
             lambda unit: unit.tag in self.bot.combatArray
         )'''
-        """
-        wounded_units = self.bot.units.filter(
-            lambda u: u.is_biological and u.health_percentage < 1.0
-        )  # 체력이 100% 이하인 유닛 검색"""
         #combatArray에 있는 유닛들을 units로
         combat_units = self.bot.units.tags_in(self.bot.combatArray)
+        #combat_units = self.bot.units.exclude_type([UnitTypeId.COMMANDCENTER, UnitTypeId.RAVEN, UnitTypeId.GHOST, UnitTypeId.MULE])
+        
         cc = self.bot.units(UnitTypeId.COMMANDCENTER).first
         enemy_cc = self.bot.enemy_start_locations[0]  # 적 시작 위치
         cc_abilities = await self.bot.get_available_abilities(cc)
         mule = self.bot.units(UnitTypeId.MULE)
-        pos = cc.position.towards(enemy_cc.position, -5)
+        #pos = cc.position.towards(enemy_cc.position, -5)
+        #다친 기계 유닛
+        wounded_units = self.bot.units.filter(
+            lambda u: u.is_mechanical and u.health_percentage < 1.0
+        )  # 체력이 100% 이하인 유닛 검색
+
         #방어시 집결 위치
         defense_position = self.bot.start_location + 0.25 * (enemy_cc.position - self.bot.start_location)
-        #대기시 집결 위치
-        wait_position = self.bot.start_location + 0.5 * (enemy_cc.position - self.bot.start_location)
-        """if cc.distance_to(combat_units.center) > cc.distance_to(defense_position):
-            wait_position = combat_units.center
-        else:
-            wait_position = defense_position"""
+        
 
+        ##-----모드 변경-----
+        if self.bot.die_count >= 3:
+            mode = 1 #고스트가 3번이상 죽으면 offense 모드로 변경
+        
 
-        #Mule 옮겨옴
-        if cc.health_percentage < 1.0:
+        ##-----Mule 기계 유닛 힐-----
+        if wounded_units.exists or cc.health_percentage < 0.8:
+            wounded_unit = wounded_units.closest_to(cc)
             if mule.amount == 0:
                 #print("뮬없음")
                 if AbilityId.CALLDOWNMULE_CALLDOWNMULE in cc_abilities:
                     # 지게로봇 생산가능하면 생산
-                    actions.append(cc(AbilityId.CALLDOWNMULE_CALLDOWNMULE, pos))
+                    actions.append(cc(AbilityId.CALLDOWNMULE_CALLDOWNMULE, wounded_unit.position))
                     #print("뮬생산")
             elif mule.amount > 0:
                 #actions.append(mule.first(AbilityId.REPAIR_MULE(cc)))
-                actions.append(mule.first(AbilityId.EFFECT_REPAIR_MULE, cc))
+                actions.append(mule.first(AbilityId.EFFECT_REPAIR_MULE, wounded_unit))
                 #print("힐")
         else: #택틱이 뮬인데 치료할거리가 없을경우->그럴수가 있나?
             if mule.amount > 0:
                 mule_unit=mule.random
-                actions.append(mule_unit.move(pos))
+                actions.append(mule_unit.move(combat_units.center))
                 #print("이동")
 
         
@@ -339,8 +332,8 @@ class CombatManager(object):
         # -----유닛 명령 생성-----
         ## 마이크로 컨트롤
         #
-        for unit in self.bot.units:
-            if unit.tag in self.bot.combatArray:
+        for unit in self.bot.units.not_structure:  # 건물이 아닌 유닛만 선택
+            if unit in combat_units:
                     ##-----타겟 설정-----
                 enemy_unit = self.bot.enemy_start_locations[0]
                 if self.bot.known_enemy_units.exists:
@@ -358,11 +351,11 @@ class CombatManager(object):
                 if unit.type_id is not UnitTypeId.MEDIVAC:
                     #print(combat_units.amount)
                     #if len(self.bot.combatArray) > 20 and self.bot.units.of_type([UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK]).amount > 1:
-                    if self.bot.combat_strategy is CombatStrategy.OFFENSE or self.bot.combat_strategy is CombatStrategy.WAIT : #0=OFFENSE, 2=WAIT
+                    if mode == 1: #1=OFFENSE
                         #unit.move(Point2((self.pos,60)))
                         # 전투가능한 유닛 수가 20을 넘으면 + 탱크 2대 이상 적 본진으로 공격              
                         actions.append(unit.attack(target))
-                    elif self.bot.combat_strategy is CombatStrategy.DEFENSE: #1=DEFENSE
+                    elif mode == 0: #0=DEFENSE
                         # 적 사령부 방향에 유닛 집결
                         target = defense_position
                         actions.append(unit.attack(target))
@@ -370,7 +363,7 @@ class CombatManager(object):
                     ##-----해병과 불곰-----
                     if unit.type_id in (UnitTypeId.MARINE, UnitTypeId.MARAUDER):
                         #OFFENSE
-                        if self.bot.combat_strategy is CombatStrategy.OFFENSE and unit.distance_to(target) < 15:
+                        if mode == 1 and unit.distance_to(target) < 15:
                             # 유닛과 목표의 거리가 15이하일 경우 스팀팩 사용
                             if not unit.has_buff(BuffId.STIMPACK) and unit.health_percentage > 0.5:
                                 # 현재 스팀팩 사용중이 아니며, 체력이 50% 이상
@@ -378,14 +371,24 @@ class CombatManager(object):
                                     # 1초 이전에 스팀팩을 사용한 적이 없음
                                     actions.append(unit(AbilityId.EFFECT_STIM))
                                     self.evoked[(unit.tag, AbilityId.EFFECT_STIM)] = self.bot.time
-                        
-                        #WAIT
-                        if self.bot.combat_strategy is CombatStrategy.WAIT:
-                            #대기 위치로 이동
-                            actions.append(unit.move(wait_position))
+ 
+                    ##-----토르-----
+                    if unit.type_id in (UnitTypeId.THOR, UnitTypeId.THORAP):
+                        if self.bot.known_enemy_units.exists:
+                            #적에 전투순양함이 있으면 전투순양함에게 한방에 큰 딜 넣는게 우선
+                            if self.bot.known_enemy_units.of_type(UnitTypeId.BATTLECRUISER).exists:
+                                target = self.bot.known_enemy_units.of_type(UnitTypeId.BATTLECRUISER).closest_to(unit)
+                                #print("토르 타겟: ", target)
+                                if unit.type_id is UnitTypeId.THOR:
+                                    order = unit(AbilityId.MORPH_THORHIGHIMPACTMODE)
+                                    actions.append(order)
+                            #전투순양함 없으면 광역딜
+                            else:
+                                if unit.type_id is UnitTypeId.THORAP:
+                                    order = unit(AbilityId.MORPH_THOREXPLOSIVEMODE)
+                                    actions.append(order)
 
-
-
+                    '''
                     ##-----탱크-----
                     if unit.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
                         #상태에 따라 분류
@@ -450,7 +453,7 @@ class CombatManager(object):
                             #타겟설정: 해병과 불곰 우선
                             if self.bot.known_enemy_units.of_type([UnitTypeId.MARINE, UnitTypeId.MARAUDER]).exists:
                                 target = self.bot.known_enemy_units.of_type([UnitTypeId.MARINE, UnitTypeId.MARAUDER]).closest_to(unit)
-                                #print("탱크 타겟설정됨")
+                                #print("탱크 타겟설정됨")'''
                             
             
             ##-----비전투 유닛==메디박-----
@@ -500,14 +503,13 @@ class StepManager(object):
 class ProductManager(object):
     """
     어떤 (부대의) 유닛을 생산할 것인지 결정하는 매니저(선택-생산-배치)
+    ProductStrategy만들면서 잠깐 안씀!!!
     """
     def __init__(self, bot_ai):
         self.bot= bot_ai
     
-    async def product(self):
-        """
-        다음에 생산할 유닛 return
-        """
+    async def product(self, next_unit):
+        print("product 불러지면 안되는데 불러짐!!")
         """
         각 부대에서 필요한 유닛을 리스트로 bot에게 줌(비율은 각 매니저에서 계산)
         [combat, recon, nuke] 꼴, 매번 갱신
@@ -517,26 +519,19 @@ class ProductManager(object):
         actions = list()
         #print("00000생산요청들어감: ", self.bot.trainOrder)
 
-        #유닛 결정
-        if self.bot.tactic_strategy == TacticStrategy.ATTACK: #combat생산
-            next_unit = self.bot.trainOrder[0]
-        elif self.bot.tactic_strategy == TacticStrategy.RECON: #recon생산
-            next_unit = self.bot.trainOrder[1]        
-        else: #2=NUKE-nuke생산
-            next_unit = self.bot.trainOrder[2]
-        #print("00000유닛고름: ", next_unit)
-
         #유닛 생산
         if self.bot.can_afford(next_unit):
             #print("00000생산 가능")
             if self.bot.time - self.bot.evoked.get((self.bot.cc.tag, 'train'), 0) > 1.0:
                 #print("00000마지막 명령을 발행한지 1초 이상 지났음")
                 actions.append(self.bot.cc.train(next_unit))
-                #print("00000생산됨-----:", next_unit)
+                #print("00000생산명령-----:", next_unit)
+                #self.bot.productorder = self.bot.productorder + 1
+                #print("생산명령횟수: ", self.bot.productorder)
                 self.bot.evoked[(self.bot.cc.tag, 'train')] = self.bot.time
-                
-
-        return actions       
+        
+        return actions     
+                     
 
 
 
@@ -544,11 +539,16 @@ class ProductManager(object):
 class RatioManager(object):
     """
     부대에 따라 생성할 유닛 비율 결정하는 매니저
+    ProductStrategy만들면서 잠깐 안씀!!!
     """
     def __init__(self, bot_ai):
         self.bot= bot_ai
 
     def next_unit_select(self, unit_counts, target_unit_counts):
+        """
+        비율에 따라 next_unit 리턴
+        """
+        print("ratio-next_unit_select 불러지면 안되는데 불러짐!!")
         target_units = np.array(list(target_unit_counts.values()))
         target_unit_ratio = target_units / (target_units.sum() + 1e-6)  # 목표로 하는 유닛 비율
         current_unit_counts = np.array([unit_counts.get(tid, 0) for tid in target_unit_counts.keys()])
@@ -560,39 +560,17 @@ class RatioManager(object):
 
     def ratio(self):
         """
-        부대에 따라 다음에 생산할 유닛 return
+        부대별 비율에 따라 다음에 생산할 유닛 bot의 next_unit에 저장
         """
-
+        print("ratio 불러지면 안되는데 불러짐!!")
         #combat_unit_counts = dict()
         recon_unit_counts = dict()
-        nuke_unit_counts = dict()
+        #nuke_unit_counts = dict()
 
         #COMBAT
-        """
-        self.combat_target_unit_counts = {
-                UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
-                UnitTypeId.MARINE: 40,
-                UnitTypeId.MARAUDER: 0,
-                UnitTypeId.REAPER: 0,
-                UnitTypeId.GHOST: 0,
-                UnitTypeId.HELLION: 0,
-                UnitTypeId.SIEGETANK: 2,
-                UnitTypeId.THOR: 0,
-                UnitTypeId.MEDIVAC: 0,
-                UnitTypeId.VIKINGFIGHTER: 0,
-                UnitTypeId.BANSHEE: 0,
-                UnitTypeId.RAVEN: 0,
-                UnitTypeId.BATTLECRUISER: 0,
-            }
-        for unit in self.bot.units:
-            if unit.tag in self.bot.combatArray: # 유닛의 태그가 어레이에 포함되어있으면
-                combat_unit_counts[unit.type_id] = combat_unit_counts.get(unit.type_id, 0) + 1
-        
-        combat_next_unit = self.next_unit_select(combat_unit_counts, self.combat_target_unit_counts)
-        """
-
         if self.bot.vespene > 200:
-            combat_next_unit = UnitTypeId.SIEGETANK
+            #combat_next_unit = UnitTypeId.SIEGETANK
+            combat_next_unit = UnitTypeId.THOR
         else:
             combat_next_unit = UnitTypeId.MARINE
         
@@ -617,94 +595,17 @@ class RatioManager(object):
                 recon_unit_counts[unit.type_id] = recon_unit_counts.get(unit.type_id, 0) + 1
         
         recon_next_unit = self.next_unit_select(recon_unit_counts, self.recon_target_unit_counts)
-        
-        #NUKE
-        self.nuke_target_unit_counts = {
-                UnitTypeId.GHOST: 1,
-            }
-        for unit in self.bot.units:
-            if unit.tag in self.bot.nukeArray: # 유닛의 태그가 어레이에 포함되어있으면
-                nuke_unit_counts[unit.type_id] = nuke_unit_counts.get(unit.type_id, 0) + 1
-        
-        nuke_next_unit = self.next_unit_select(nuke_unit_counts, self.nuke_target_unit_counts)
 
-
-        self.bot.trainOrder = [combat_next_unit, recon_next_unit, nuke_next_unit]
+        #self.bot.trainOrder = [combat_next_unit, recon_next_unit, nuke_next_unit]
+        trainOrder = [combat_next_unit, recon_next_unit]
+        #유닛 결정
+        if self.bot.product_strategy == ProductStrategy.ATTACK: #combat생산
+            self.bot.next_unit = trainOrder[0]
+        elif self.bot.product_strategy == ProductStrategy.RECON: #recon생산
+            self.bot.next_unit = trainOrder[1]  
         #print("11111생산요청: ", self.bot.trainOrder)
-        
-        
-        """
-        if self.bot.tactic_strategy == TacticStrategy.ATTACK:
-            #print("들어옴: 111111")
-            self.target_unit_counts = {
-                UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
-                UnitTypeId.MARINE: 25,
-                UnitTypeId.MARAUDER: 0,
-                UnitTypeId.REAPER: 0,
-                UnitTypeId.GHOST: 0,
-                UnitTypeId.HELLION: 0,
-                UnitTypeId.SIEGETANK: 2,
-                UnitTypeId.THOR: 0,
-                UnitTypeId.MEDIVAC: 0,
-                UnitTypeId.VIKINGFIGHTER: 0,
-                UnitTypeId.BANSHEE: 0,
-                UnitTypeId.RAVEN: 0,
-                UnitTypeId.BATTLECRUISER: 0,
-            }
-            for unit in self.bot.units:
-                if unit.tag in self.bot.combatArray: # 유닛의 태그가 어레이에 포함되어있으면
-                    unit_counts[unit.type_id] = unit_counts.get(unit.type_id, 0) + 1
-            
-        elif self.bot.tactic_strategy == TacticStrategy.RECON:
-            #print("들어옴: 2222222")
-            self.target_unit_counts = {
-                UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
-                UnitTypeId.MARINE: 2,
-                UnitTypeId.MARAUDER: 0, 
-                UnitTypeId.REAPER: 0,
-                UnitTypeId.GHOST: 0,
-                UnitTypeId.HELLION: 0,
-                UnitTypeId.SIEGETANK: 0,
-                UnitTypeId.THOR: 0,
-                UnitTypeId.MEDIVAC: 0,
-                UnitTypeId.VIKINGFIGHTER: 0,
-                UnitTypeId.BANSHEE: 0,
-                UnitTypeId.RAVEN:1,
-                UnitTypeId.BATTLECRUISER: 0,
-            }
-            for unit in self.bot.units:
-                if unit.tag in self.bot.reconArray: # 유닛의 태그가 어레이에 포함되어있으면
-                    unit_counts[unit.type_id] = unit_counts.get(unit.type_id, 0) + 1
-
-        elif self.bot.tactic_strategy == TacticStrategy.NUKE:
-            #print("들어옴: 333333333")
-            self.target_unit_counts = {
-                UnitTypeId.COMMANDCENTER: 0,
-                UnitTypeId.GHOST: 1,
-            }
-            for unit in self.bot.units:
-                if unit.tag in self.bot.nukeArray: # 유닛의 태그가 어레이에 포함되어있으면
-                    unit_counts[unit.type_id] = unit_counts.get(unit.type_id, 0) + 1
 
         
-
-        self.evoked = dict()
-        
-        
-        
-        ### 여기서 unit_counts에 각각 다른 유닛집단 들어가야하지않나??
-
-        target_unit_counts = np.array(list(self.target_unit_counts.values()))
-        target_unit_ratio = target_unit_counts / (target_unit_counts.sum() + 1e-6)  # 목표로 하는 유닛 비율
-        current_unit_counts = np.array([unit_counts.get(tid, 0) for tid in self.target_unit_counts.keys()])
-        current_unit_ratio = current_unit_counts / (current_unit_counts.sum() + 1e-6)  # 현재 유닛 비율
-        unit_ratio = (target_unit_ratio - current_unit_ratio).clip(0, 1)  # 목표 - 현재 유닛 비율
-        
-        next_unit = list(self.target_unit_counts.keys())[unit_ratio.argmax()]  # 가장 부족한 유닛을 다음에 훈련
-
-        print("ratio뽑힌애--------: ",next_unit)
-        return next_unit"""
-
 
 class AssignManager(object): #뜯어고쳐야함
     """
@@ -718,22 +619,41 @@ class AssignManager(object): #뜯어고쳐야함
         pass
 
     def assign(self):
-
+        """
+        유닛 타입을 보고 부대별 array에 유닛 배치
+        """
         units_tag = self.bot.units.tags #전체유닛
-        #  and연산으로 살아있는 유닛으로만 구성
+        #and연산으로 살아있는 유닛으로만 구성
         self.bot.combatArray = self.bot.combatArray & units_tag 
         self.bot.reconArray = self.bot.reconArray & units_tag
         self.bot.nukeArray = self.bot.nukeArray & units_tag
 
-        #tactic이 combat이면 combatarray에 주고 나머지엔 combat에서 쓰는게 제외하고 할당 가능?ㅇㅇ
+        #이미 할당된 유닛의 태그 빼고
         units_tag = units_tag - self.bot.combatArray - self.bot.reconArray - self.bot.nukeArray
-        
-        if self.bot.tactic_strategy == TacticStrategy.ATTACK :
+
+        #유닛 타입에 따라 array 배정
+        for tag in units_tag:
+            unit = self.bot.units.find_by_tag(tag)
+            if unit is None:
+                pass
+            elif unit.type_id is UnitTypeId.RAVEN: #레이븐은 레콘으로
+                self.bot.reconArray.add(unit.tag)
+            elif unit.type_id is UnitTypeId.GHOST: #고스트는 누크로
+                self.bot.nukeArray.add(unit.tag)
+            elif unit.type_id in (UnitTypeId.THOR, UnitTypeId.THORAP): #토르는 컴뱃으로
+                self.bot.combatArray.add(unit.tag)
+            elif unit.type_id is UnitTypeId.MARINE: #마린도 컴뱃으로
+                self.bot.combatArray.add(unit.tag)
+            else: #아무것도 아니여도 일단 컴뱃으로
+                self.bot.combatArray.add(unit.tag)
+
+        """
+        if self.bot.product_strategy == ProductStrategy.ATTACK :
             self.bot.combatArray = self.bot.combatArray | units_tag
-        elif self.bot.tactic_strategy == TacticStrategy.RECON:
-            self.bot.reconArray = self.bot.reconArray | units_tag
-        elif self.bot.tactic_strategy == TacticStrategy.NUKE:
-            self.bot.nukeArray = self.bot.nukeArray | units_tag
+        elif self.bot.product_strategy == ProductStrategy.RECON:
+            self.bot.reconArray = self.bot.reconArray | units_tag"""
+        #elif self.bot.product_strategy == ProductStrategy.NUKE:
+            #self.bot.nukeArray = self.bot.nukeArray | units_tag
 
         #print("assign됨--------")
 
@@ -755,7 +675,8 @@ class AssignManager(object): #뜯어고쳐야함
             unit = self.bot.units.find_by_tag(tag) #전체유닛중 레콘태그에 해당하는 유닛
             if unit is None:
                 pass
-            elif unit.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
+            #elif unit.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
+            elif unit.type_id in (UnitTypeId.THOR, UnitTypeId.THORAP):
                 self.bot.combatArray.add(unit.tag)
             elif unit.type_id is UnitTypeId.GHOST:
                 self.bot.nukeArray.add(unit.tag)
@@ -764,7 +685,8 @@ class AssignManager(object): #뜯어고쳐야함
             unit = self.bot.units.find_by_tag(tag) #전체유닛중 누크태그에 해당하는 유닛
             if unit is None:
                 pass
-            elif unit.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
+            #elif unit.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
+            elif unit.type_id in (UnitTypeId.THOR, UnitTypeId.THORAP):
                 self.bot.combatArray.add(unit.tag)
             elif unit.type_id is UnitTypeId.RAVEN:
                 self.bot.reconArray.add(unit.tag)       
@@ -775,7 +697,7 @@ class AssignManager(object): #뜯어고쳐야함
 class Bot(sc2.BotAI):
     """
     빌드 오더 대신, 유닛 비율을 맞추도록 유닛을 생산함
-    개별 전투 유닛이 적사령부에 바로 공격하는 대신, 15이 모일 때까지 대기
+    공격 타이밍은 강화학습을 통해 학습
     """
     def __init__(self, step_interval=5.0, host_name='', sock=None):
         super().__init__()
@@ -797,8 +719,8 @@ class Bot(sc2.BotAI):
         self.assign_manager = AssignManager(self)
         self.recon_manager = ReconManager(self)
         self.nuke_manager = NukeManager(self)
-        self.ratio_manager = RatioManager(self)
-        self.product_manager = ProductManager(self)
+        #self.ratio_manager = RatioManager(self)
+        #self.product_manager = ProductManager(self)
         #부대별 유닛 array
         self.combatArray = set()
         self.reconArray = set()
@@ -806,22 +728,27 @@ class Bot(sc2.BotAI):
         self.reward = 0 
         self.nuke_strategy=0
 
-        self.trainOrder=list()
+        #self.trainOrder=list()
+        #self.next_unit = UnitTypeId.MARINE
         
-        self.nukeGo = 0 #핵 쏜 횟수-bigDamage있으면 일단 필요없음 그냥 확인용으로 남겨둠
-        self.previous_Damage = 0 #이전 틱의 토탈대미지(아래를 계산하기 위한 기록용, 매 틱 갱신)
-        self.bigDamage = 0 #한번에 500이상의 큰 대미지가 들어간 횟수(핵이 500이상)
+
+        #self.nukeGo = 0 #핵 쏜 횟수-bigDamage있으면 일단 필요없음 그냥 확인용으로 남겨둠
+        #self.previous_Damage = 0 #이전 틱의 토탈대미지(아래를 계산하기 위한 기록용, 매 틱 갱신)
+        #self.bigDamage = 0 #한번에 500이상의 큰 대미지가 들어간 횟수(핵이 500이상)
 
         # 정찰부대에서 사용하는 플래그
-        self.threaten=list()
         self.enemy_alert=0
         self.die_alert=0 # 레이븐 죽었을때
         self.is_ghost=0 # 적이 유령인지
-        self.last_pos=(0,0) # 레이븐 실시간 위치
+        self.last_pos=(0,0)
 
-        # 핵 부대에서 사용하는 플래그
-        self.die_count=0
+
+        #누크 부대에서 사용하는 플래그
+        self.die_count = 0
         
+        #self.productorder = 0 #생산명령 들어간 횟수
+        #self.productdone = 0 #생산명령 수행 횟수
+        self.productIng = 0 #생산명령들어가면 1, 처리되면 0
 
     def on_start(self):
         """
@@ -830,9 +757,10 @@ class Bot(sc2.BotAI):
         self.step_interval = self.step_interval
         self.last_step_time = -self.step_interval
 
-        self.tactic_strategy = TacticStrategy.ATTACK
-        self.combat_strategy = 1 #0,1
-        self.trainOrder = [UnitTypeId.MARINE, UnitTypeId.MARINE, None] #Combat,Recon,Nuke
+        self.product_strategy = ProductStrategy.MARINE.value
+        self.nuke_strategy = 1 #0,1
+        #self.trainOrder = [UnitTypeId.MARINE, UnitTypeId.MARINE, None] #Combat,Recon,Nuke
+        self.trainOrder = [UnitTypeId.MARINE, UnitTypeId.MARINE] #Combat,Recon,Nuke
         self.evoked = dict() #생산명령 시간 체크
 
         self.cc = self.units(UnitTypeId.COMMANDCENTER).first  # 전체 유닛에서 사령부 검색
@@ -863,62 +791,90 @@ class Bot(sc2.BotAI):
 
         if self.time - self.last_step_time >= self.step_interval:
             #택틱 변경
-            self.tactic_strategy, self.combat_strategy = self.set_strategy()
-            self.last_step_time = self.time
-            if self.tactic_strategy == TacticStrategy.NUKE:
-                self.nuke_strategy = randint(1,2)
-            #print("-------택틱: ", self.tactic_strategy)
-            #print("-------컴뱃: ", self.combat_strategy)
+            self.product_strategy, self.nuke_strategy = self.set_strategy()
+            #print("-------생산택틱: ", self.product_strategy)
 
             self.assign_manager.reassign() #이상하게 배치된 경우 있으면 제배치
 
             """
-            #유닛 결정
-            next_unit = self.ratio_manager.next_unit_select() #RatioManager에서 받아옴
-            #유닛 생산
-            if self.can_afford(next_unit) and self.time - self.ratio_manager.evoked.get((self.cc.tag, 'train'), 0) > 1.0:
-                # 해당 유닛 생산 가능하고, 마지막 명령을 발행한지 1초 이상 지났음
-                actions.append(self.cc.train(next_unit))
-                print("생산됨-----:", next_unit)
-                self.ratio_manager.evoked[(self.cc.tag, 'train')] = self.time
-                #부대 배치
-                self.assign_manager.assign()"""
-
             if self.state.score.total_damage_dealt_life - self.previous_Damage > 500: #한번에 500이상의 대미지를 주었다면
                 self.bigDamage += 1
-                #print("한방딜 ㄱ: ", self.bigDamage, "딜량: ", self.state.score.total_damage_dealt_life - self.previous_Damage)
-            self.previous_Damage = self.state.score.total_damage_dealt_life #갱신
+                print("한방딜 ㄱ: ", self.bigDamage, "딜량: ", self.state.score.total_damage_dealt_life - self.previous_Damage)
+            self.previous_Damage = self.state.score.total_damage_dealt_life #갱신 """
+            
+            self.last_step_time = self.time
+        
+
+        #생산 명령이 처리되었다면
+        if self.productIng == 0: 
+            #self.ratio_manager.ratio() #next_unit 바꿔주고
+
+            #생산
+            #actions += await self.product_manager.product(self.next_unit) #생산
+            actions += self.train_action() #생산
+            self.productIng = 1 #생산명령 들어갔다고 바꿔줌
+
+        #생산 명령이 들어갔다면
+        elif self.productIng == 1:
+            #대기
+            #await self.on_unit_created(self.next_unit) #명령넣은게 생산될때까지 기다림
+            #self.productdone = self.productdone + 1
+            #print("생산명령 수행횟수: ", self.productdone) #엄청큼 문제있음
+            #print(self.next_unit)
+
+            #배치
+            self.assign_manager.assign()
+            self.productIng = 0 #생산명령 수행했다고 바꿔줌 
+
 
         
         #actions += await self.attack_team_manager.step()
-        self.ratio_manager.ratio() #trainOrder 리스트 바꿔주고
-        actions += await self.product_manager.product() #생산
+        
+        #actions += await self.product_manager.product(self.next_unit) #생산
         actions += await self.recon_manager.step() 
         actions += await self.combat_manager.step()   
         actions += await self.nuke_manager.step()
         
-
-        
-
         ## -----명령 실행-----
         await self.do_actions(actions)
-        #부대 배치
-        self.assign_manager.assign()
+        #print(self.on_unit_created)
+        
         #print("한거: ",actions)
 
+
+    def train_action(self):
+        #
+        # 사령부 명령 생성
+        #
+        actions = list()
+        next_unit = self.product_strategy
+        if self.can_afford(next_unit):
+            if self.time - self.evoked.get((self.cc.tag, 'train'), 0) > 1.0:
+                # 해당 유닛 생산 가능하고, 마지막 명령을 발행한지 1초 이상 지났음
+                actions.append(self.cc.train(next_unit))
+                self.evoked[(self.cc.tag, 'train')] = self.time
+        return actions
 
 
     def set_strategy(self):
         #
         # 특징 추출
         #
-        state = np.zeros(6, dtype=np.float32)
+        state = np.zeros(8, dtype=np.float32)
         state[0] = self.cc.health_percentage
         state[1] = min(1.0, self.minerals / 1000)
         state[2] = min(1.0, self.vespene / 1000)
         state[3] = min(1.0, self.time / 360)
         state[4] = min(1.0, self.state.score.total_damage_dealt_life / 2500)
         state[5] = len(self.combatArray) #combat 부대의 유닛 수 - combat결정용 state
+        for unit in self.units.not_structure:
+            if unit in self.units.tags_in(self.combatArray):
+                if unit.type_id is not UnitTypeId.MULE:
+                    #토르 변신중이여도 토르로 취급
+                    if unit.type_id is UnitTypeId.THORAP:
+                        state[6 + ProductStrategy.to_index[UnitTypeId.THOR]] += 1
+                    else:
+                        state[6 + ProductStrategy.to_index[unit.type_id]] += 1
         #state[6] = self.trainOrder #각 부대별 생산요청 유닛 - product 결정용 - 리스트라 안됨
         state = state.reshape(1, -1)
 
@@ -939,23 +895,24 @@ class Bot(sc2.BotAI):
                 value, logp = self.model(torch.FloatTensor(state))
                 value = value.item()
                 action = logp.exp().multinomial(num_samples=1).item()
-        #print("액션: ", action)
-        tactic_strategy = TacticStrategy(action // len(CombatStrategy))
-        #print("택틱: ", action // len(CombatStrategy))
-        combat_strategy = CombatStrategy(action % len(CombatStrategy))
-        #print("컴뱃: ", action % len(CombatStrategy))
-        return tactic_strategy, combat_strategy
+        product_strategy = ProductStrategy.to_type_id[action // len(NukeStrategy)]
+        nuke_strategy = NukeStrategy(action % len(NukeStrategy))
+        # product_strategy = ProductStrategy.to_type_id(action // (len(NukeStrategy)*len(mule_strategy)))
+        # nuke_strategy = NukeStrategy(action // len(NukeStrategy))
+        # mule_strategy = MuleStrategy(action % len(MuleStrategy))
+        return product_strategy, nuke_strategy
 
 
     def on_end(self, game_result):
         if self.sock is not None:
-            #score = 1. if game_result is Result.Victory else -1.
+            score = 1. if game_result is Result.Victory else -1.
+            """
             if game_result is Result.Victory:
                 score = 0.5
             else: score = -0.5
             if self.bigDamage > 0:  #한번에 큰 대미지 넣은 횟수만큼
                 score += self.bigDamage * 0.05
-            #print("리워드: ", score)
+            print("리워드: ", score)"""
             self.sock.send_multipart((
                 CommandType.SCORE, 
                 pickle.dumps(self.game_id),
