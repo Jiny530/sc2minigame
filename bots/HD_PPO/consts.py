@@ -21,6 +21,13 @@ class ProductStrategy(Enum):
     MARINE = UnitTypeId.MARINE
     THOR = UnitTypeId.THOR
     
+ProductStrategy.to_index = dict()
+ProductStrategy.to_type_id = dict()
+
+for idx, strategy in enumerate(ProductStrategy):
+    ProductStrategy.to_index[strategy.value] = idx
+    ProductStrategy.to_type_id[idx] = strategy.value
+
     
 class NukeStrategy(Enum):
     OFFENSE = 0 
@@ -34,5 +41,5 @@ class MessageType(Enum):
     EXCEPTION = 1
 
 
-N_FEATURES = 5
+N_FEATURES = 6+2 #state가 6개+ProductStrategy의 2개
 N_ACTIONS = len(ProductStrategy) * len(NukeStrategy)
