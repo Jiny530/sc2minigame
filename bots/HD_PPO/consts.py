@@ -17,6 +17,7 @@ class CommandType(bytes, Enum):
     ERROR = b'\x04'
 
 
+<<<<<<< Updated upstream
 class TacticStrategy(Enum):
     ATTACK = 0 
     RECON = 1
@@ -25,9 +26,17 @@ class TacticStrategy(Enum):
 
 
 class CombatStrategy(Enum):
+=======
+class ProductStrategy(Enum):
+    MARINE = UnitTypeId.MARINE
+    THOR = UnitTypeId.THOR
+    
+    
+class NukeStrategy(Enum):
+>>>>>>> Stashed changes
     OFFENSE = 0 
     DEFENSE = 1
-    WAIT = 2
+
 
 
 Sample = namedtuple('Sample', 's, a, r, done, logp, value')
@@ -39,4 +48,4 @@ class MessageType(Enum):
 
 
 N_FEATURES = 5
-N_ACTIONS = len(TacticStrategy)
+N_ACTIONS = len(ProductStrategy) * len(NukeStrategy)
