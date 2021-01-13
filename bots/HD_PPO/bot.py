@@ -279,7 +279,44 @@ class CombatManager(object):
                                     self.evoked[(unit.tag, AbilityId.EFFECT_STIM)] = self.bot.time
                         
                         
+<<<<<<< Updated upstream
+=======
 
+>>>>>>> Stashed changes
+
+                    ##-----토르-----
+                    if unit.type_id in (UnitTypeId.THOR, UnitTypeId.THORAP):
+                        """
+                        if unit.health_percentage < 0.5:
+                            if mule.amount == 0:
+                            #print("뮬없음")
+                                if AbilityId.CALLDOWNMULE_CALLDOWNMULE in cc_abilities:
+                                    # 지게로봇 생산가능하면 생산
+                                    actions.append(cc(AbilityId.CALLDOWNMULE_CALLDOWNMULE, unit.position))
+                                    #print("뮬생산")
+                            elif mule.amount > 0:
+                                #actions.append(mule.first(AbilityId.REPAIR_MULE(cc)))
+                                actions.append(mule.first(AbilityId.EFFECT_REPAIR_MULE, unit))
+                                #print("힐")
+                            else: #뮬이 치료할거리가 없을경우
+                                if mule.amount > 0:
+                                    mule_unit=mule.random
+                                    actions.append(mule_unit.move(combat_units.center))"""
+                        
+                        if self.bot.known_enemy_units.exists:
+                            #적에 전투순양함이 있으면 전투순양함에게 한방에 큰 딜 넣는게 우선
+                            if self.bot.known_enemy_units.of_type(UnitTypeId.BATTLECRUISER).exists:
+                                target = self.bot.known_enemy_units.of_type(UnitTypeId.BATTLECRUISER).closest_to(unit)
+                                #print("토르 타겟: ", target)
+                                if unit.type_id is UnitTypeId.THOR:
+                                    order = unit(AbilityId.MORPH_THORHIGHIMPACTMODE)
+                                    actions.append(order)
+                            #전투순양함 없으면 광역딜
+                            else:
+                                if unit.type_id is UnitTypeId.THORAP:
+                                    order = unit(AbilityId.MORPH_THOREXPLOSIVEMODE)
+                                    actions.append(order)
+                        
 
                     ##-----토르-----
                     if unit.type_id in (UnitTypeId.THOR, UnitTypeId.THORAP):
@@ -399,8 +436,12 @@ class CombatManager(object):
                     actions.append(unit.move(self.bot.cc - 5))
                 else: 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
                     actions.append(unit.move(self.bot.units.closest_to(unit)))
                     #print("대기중")"""
+=======
+                    actions.append(unit.move(self.bot.units.closest_to(unit)))"""
+>>>>>>> Stashed changes
 =======
                     actions.append(unit.move(self.bot.units.closest_to(unit)))"""
 >>>>>>> Stashed changes
@@ -541,6 +582,7 @@ class RatioManager(object):
         #print("11111생산요청: ", self.bot.trainOrder)
         
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         
         """
         #if self.bot.tactic_strategy == TacticStrategy.ATTACK or self.bot.tactic_strategy == TacticStrategy.MULE:
@@ -615,6 +657,8 @@ class RatioManager(object):
         return next_unit"""
 =======
 >>>>>>> Stashed changes
+=======
+>>>>>>> Stashed changes
 
 
 class AssignManager(object):
@@ -642,9 +686,12 @@ class AssignManager(object):
         units_tag = units_tag - self.bot.combatArray - self.bot.reconArray - self.bot.nukeArray
         
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         #if self.bot.tactic_strategy == TacticStrategy.ATTACK or self.bot.tactic_strategy == TacticStrategy.MULE:
         if self.bot.tactic_strategy == TacticStrategy.ATTACK:
 =======
+=======
+>>>>>>> Stashed changes
         #유닛 타입에 따라 array 배정
         for tag in units_tag:
             unit = self.bot.units.find_by_tag(tag)
@@ -663,6 +710,9 @@ class AssignManager(object):
 
         """
         if self.bot.product_strategy == ProductStrategy.ATTACK :
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
+=======
 >>>>>>> Stashed changes
             self.bot.combatArray = self.bot.combatArray | units_tag
         elif self.bot.product_strategy == ProductStrategy.RECON:
@@ -797,8 +847,12 @@ class Bot(sc2.BotAI):
             self.product_strategy, self.nuke_strategy = self.set_strategy()
             self.last_step_time = self.time
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
             print("-------택틱: ", self.tactic_strategy)
             print("-------컴뱃: ", self.combat_strategy)
+=======
+            print("-------택틱: ", self.product_strategy)
+>>>>>>> Stashed changes
 =======
             print("-------택틱: ", self.product_strategy)
 >>>>>>> Stashed changes
