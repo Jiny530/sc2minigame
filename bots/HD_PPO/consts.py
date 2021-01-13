@@ -26,7 +26,6 @@ class NukeStrategy(Enum):
     OFFENSE = 0 
     DEFENSE = 1
 
-
 Sample = namedtuple('Sample', 's, a, r, done, logp, value')
 
 

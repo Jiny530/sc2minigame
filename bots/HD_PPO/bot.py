@@ -68,24 +68,22 @@ class NukeManager(object):
     def __init__(self, bot_ai):
         self.bot = bot_ai
         self.pos=0
-        self.ghost_pos1_x=32.5
-        self.ghost_pos2_x=95.5
+        self.dead=0
         self.ghost_pos=0
         self.enemy_pos=0
+        self.ghost_tag=0
 
     def reset(self):
         if self.bot.enemy_start_locations[0].x == 95.5:
-            self.ghost_pos = self.ghost_pos1_x
-            self.enemy_pos= self.ghost_pos2_x
+            self.ghost_pos = 32.5
+            self.enemy_pos= 95.5
         else :
-            self.ghost_pos = self.ghost_pos2_x
-            self.enemy_pos= self.ghost_pos1_x
-        
-        
-        
+            self.ghost_pos = 95.5
+            self.enemy_pos= 32.5
 
-    # 마지막 명령이 발행된지 10초가 넘었으면 리워드 -1?
-    # 택틱마다 일정시간 지나도 명령 발행 안되면 리워드 -1 
+
+        # 마지막 명령이 발행된지 10초가 넘었으면 리워드 -1?
+        # 택틱마다 일정시간 지나도 명령 발행 안되면 리워드 -1 
 
     async def step(self):
         actions = list() # 이번 step에 실행할 액션 목록
@@ -98,15 +96,58 @@ class NukeManager(object):
             actions.append(cc.train(UnitTypeId.GHOST))
 
         if ghosts.amount > 0:
-            ghost = ghosts.first
+            if self.dead == 0:
+                self.dead = 3 #고스트 아직 안죽음
+            ghost = ghosts.first #고스트는 딱 하나라고 가정
+            
             if AbilityId.BUILD_NUKE in cc_abilities:
                 # 전술핵 생산 가능(자원이 충분)하면 전술핵 생산
                 actions.append(cc(AbilityId.BUILD_NUKE))
                 #print(ghosts.first.position)
 
-            if ghost.distance_to(Point2((self.ghost_pos,55))) > 3 and self.pos == 0:
-                actions.append(ghost.move(Point2((self.ghost_pos,55))))
-                self.pos=1
+
+            if self.dead==1: #윗길에서 죽었으면 아랫길로
+                self.bot.nuke_strategy=2
+            elif self.dead==2: #아랫길에서 죽었으면 윗길로
+                self.bot.nuke_strategy=1
+            
+            self.dead = 3
+
+            if self.bot.nuke_strategy == 1: # 위로 가라
+                
+                if ghost.distance_to(Point2((self.ghost_pos,55))) > 3 and self.pos == 0:
+                    actions.append(ghost.move(Point2((self.ghost_pos,55))))
+                    self.pos=1
+                    '''
+                    # 이전에 위에서 죽은적 있으면 리워드 -5 // 이걸 전략 막 선택했을때 줘야하나?
+                    if self.dead == 1:
+                        self.bot.reward -= 0.1
+                        '''
+
+                if ghost.distance_to(Point2((self.ghost_pos,55))) == 0 and self.pos == 1:
+                    #print(ghost.position)
+                    actions.append(ghosts.first.move(Point2((self.enemy_pos,55))))
+                    self.pos=2
+
+                if ghost.distance_to(Point2((self.enemy_pos,55))) < 3:
+                    #print(ghost.position)
+                    self.pos=3
+            
+            elif self.bot.nuke_strategy == 2: # 아래로 가라
+                if ghost.distance_to(Point2((self.ghost_pos,10))) > 3 and self.pos == 0:
+                    actions.append(ghost.move(Point2((self.ghost_pos,10))))
+                    self.pos=1
+                    if self.dead == 2:
+                        self.bot.reward -= 0.1
+
+                if ghost.distance_to(Point2((self.ghost_pos,10))) == 0 and self.pos == 1:
+                    #print(ghost.position)
+                    actions.append(ghosts.first.move(Point2((self.enemy_pos,10))))
+                    self.pos=2
+
+                if ghost.distance_to(Point2((self.enemy_pos,10))) < 3:
+                    #print(ghost.position)
+                    self.pos=3
 
             if ghost.distance_to(Point2((self.ghost_pos,55))) == 0 and self.pos == 1:
                 #print(ghost.position)
@@ -124,6 +165,14 @@ class NukeManager(object):
                     actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
                     actions.append(ghosts.first(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=self.bot.enemy_start_locations[0]))
 
+        elif ghosts.amount==0 and self.dead==3 : #고스트 죽음 (amount==0)
+            self.pos=0
+            if self.bot.nuke_strategy == 1: #윗길로 갔었으면
+                self.dead=1 #위에서죽음 표시
+            else:
+                self.dead=2 #아랫길이었다면 아래서 죽음 표시
+        
+
         return actions
 
 
@@ -133,51 +182,87 @@ class ReconManager(object):
     """
     def __init__(self, bot_ai):
         self.bot = bot_ai
-        self.perimeter_radious = 10
-        self.pos=0
-        self.pos1_x=32.5
-        self.pos2_x=95.5
+        self.a=0
+        self.patrol_pos=list()
+        self.p=queue.Queue()
 
     def reset(self):
         if self.bot.enemy_start_locations[0].x == 95.5:
-            self.pos = self.pos1_x
+            self.patrol_pos = [Point2((32.5, 35)), Point2((37.5, 30)), Point2((32.5, 25)), Point2((27.5, 30))]
         else :
-            self.pos = self.pos2_x
-
-    # def position(self):
+            self.patrol_pos = [Point2((95.5, 35)), Point2((105.5, 30)), Point2((95.5, 25)), Point2((90.5, 30))]
         
+        self.p = queue.Queue() #tlqkf 왜안돼
+        self.p.put(self.patrol_pos[2])
+        self.p.put(self.patrol_pos[3])
+        self.p.put(self.patrol_pos[0])
+
+
     async def step(self):
         actions = list()
 
-        for unit in self.bot.units:
-            if unit.tag in self.bot.reconArray:
-                # 근처에 적들이 있는지 파악
-                actions.append(unit.move(Point2((self.pos,40))))
-                threaten = self.bot.known_enemy_units.closer_than(
-                        self.perimeter_radious, unit.position)
-                
-                if unit.type_id == UnitTypeId.RAVEN:
-                    if unit.health_percentage > 0.8 and unit.energy >= 50:
-                        #print("유닛오더? ",unit.orders)
-                        if threaten.amount > 0: # 근처에 적이 하나라도 있으면
-                            alert = 1
-                            if unit.orders and unit.orders[0].ability.id != AbilityId.RAVENBUILD_AUTOTURRET:
-                                closest_threat = threaten.closest_to(unit.position)
-                                pos = unit.position.towards(closest_threat.position, 5)
-                                pos = await self.bot.find_placement(
-                                    UnitTypeId.AUTOTURRET, pos)
-                                order = unit(AbilityId.BUILDAUTOTURRET_AUTOTURRET, pos)
-                                actions.append(order)
-                    '''else:
-                        if unit.distance_to(self.target) > 5:
-                            order = unit.move(self.target)
-                            actions.append(order)'''
+        ravens = self.bot.units(UnitTypeId.RAVEN)
+        
+        if ravens.amount == 0:
+            '''
+            if self.can_afford(UnitTypeId.RAVEN):
+                # 고스트가 하나도 없으면 고스트 훈련
+                actions.append(cc.train(UnitTypeId.RAVEN))
+            '''
+            if self.bot.die_alert == 2:
+                self.bot.die_alert = 1 # 리콘이 죽었다 => 다른곳에서 써먹을 플래그
 
-                elif unit.type_id == UnitTypeId.MARINE:
-                    if self.bot.known_enemy_units.exists:
-                        enemy_unit = self.bot.known_enemy_units.closest_to(unit)
-                        actions.append(unit.attack(enemy_unit))
+        elif ravens.amount > 0:
+            raven = ravens.first
+            self.bot.last_pos = raven.position
 
+            if self.bot.die_alert == 0 or self.bot.die_alert == 1:
+                self.bot.die_alert = 2 # 리콘 현재 존재함
+            
+            if self.bot.enemy_alert == 0: #정찰
+                if self.a==0 :
+                    actions.append(raven.move(self.patrol_pos[0]))
+                    if raven.distance_to(self.patrol_pos[0]) < 1:
+                        actions.append(raven.patrol(self.patrol_pos[1]))
+                        self.a=1
+                elif self.a==1:
+                    if raven.distance_to(self.patrol_pos[1]) < 1:
+                        actions.append(raven.patrol(self.patrol_pos[2]))
+                        self.a=2
+                elif self.a==2:    
+                    if raven.distance_to(self.patrol_pos[2]) < 1:
+                        actions.append(raven.patrol(self.patrol_pos[3]))
+                        self.a=3
+                elif self.a==3:
+                    if raven.distance_to(self.patrol_pos[3]) < 1:
+                        actions.append(raven.patrol(self.patrol_pos[0]))
+                        self.a=0
+            
+            '''
+            if raven.distance_to(self.patrol_pos[0]) == 0 :
+                actions.append(raven.patrol(self.patrol_pos[1]))#,self.patrol_pos[2]))#self.p))
+            '''
+
+            threaten = self.bot.known_enemy_units.closer_than(5, raven.position)
+            if threaten.amount > 0:
+                self.bot.enemy_alert=1 # 에너미 존재
+                target = threaten.closest_to(raven.position)
+                for unit in threaten:
+                    if unit == UnitTypeId.GHOST:
+                        self.bot.is_ghost = 1 # 핵 쏘러 옴
+                        target = unit
+                pos = raven.position.towards(target.position, 5)
+                pos = await self.bot.find_placement(UnitTypeId.AUTOTURRET, pos)
+                actions.append(raven(AbilityId.BUILDAUTOTURRET_AUTOTURRET, pos))
+
+            elif threaten.amount ==0 and self.bot.enemy_alert==1:
+                self.bot.enemy_alert=0 # 에너미 해치움
+                if self.bot.is_ghost == 1:
+                    print("유령해치움")
+                    self.bot.is_ghost == 0
+                else :
+                    print("에너미해치움")
+            
         return actions
 
 
@@ -415,9 +500,6 @@ class CombatManager(object):
                                 #print("탱크 타겟설정됨")'''
                             
             
-                                
-
-
             ##-----비전투 유닛==메디박-----
             """
             if unit.type_id is UnitTypeId.MEDIVAC:
@@ -425,14 +507,12 @@ class CombatManager(object):
                 if wounded_units.exists:
                     wounded_unit = wounded_units.closest_to(unit)  # 가장 가까운 체력이 100% 이하인 유닛
                     actions.append(unit(AbilityId.MEDIVACHEAL_HEAL, wounded_unit))  # 유닛 치료 명령
-                    #print(wounded_unit.name, "을 회복중")
+                    print(wounded_unit.name, "을 회복중")
                 elif len(self.bot.combatArray) < 1 :
                     actions.append(unit.move(self.bot.cc - 5))
                 else: 
-                    actions.append(unit.move(self.bot.units.closest_to(unit)))
-                    #print("대기중")"""
+                    actions.append(unit.move(self.bot.units.closest_to(unit)))"""
 
-        # -----유닛 명령 생성 끝-----
         return actions
 
 
@@ -569,7 +649,6 @@ class RatioManager(object):
 
         
         """
-        #if self.bot.tactic_strategy == TacticStrategy.ATTACK or self.bot.tactic_strategy == TacticStrategy.MULE:
         if self.bot.tactic_strategy == TacticStrategy.ATTACK:
             #print("들어옴: 111111")
             self.target_unit_counts = {
@@ -615,6 +694,7 @@ class RatioManager(object):
         elif self.bot.tactic_strategy == TacticStrategy.NUKE:
             #print("들어옴: 333333333")
             self.target_unit_counts = {
+                UnitTypeId.COMMANDCENTER: 0,
                 UnitTypeId.GHOST: 1,
             }
             for unit in self.bot.units:
@@ -641,7 +721,7 @@ class RatioManager(object):
         return next_unit"""
 
 
-class AssignManager(object):
+class AssignManager(object): #뜯어고쳐야함
     """
     유닛을 부대에 배치하는 매니저
     """
@@ -683,10 +763,6 @@ class AssignManager(object):
 
         """
         if self.bot.product_strategy == ProductStrategy.ATTACK :
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
             self.bot.combatArray = self.bot.combatArray | units_tag
         elif self.bot.product_strategy == ProductStrategy.RECON:
             self.bot.reconArray = self.bot.reconArray | units_tag"""
@@ -763,13 +839,22 @@ class Bot(sc2.BotAI):
         self.combatArray = set()
         self.reconArray = set()
         self.nukeArray = set()
+        self.reward = 0 
+        self.nuke_strategy=0
 
         #self.trainOrder=list()
         self.next_unit = UnitTypeId.MARINE
         
+
         #self.nukeGo = 0 #핵 쏜 횟수-bigDamage있으면 일단 필요없음 그냥 확인용으로 남겨둠
         #self.previous_Damage = 0 #이전 틱의 토탈대미지(아래를 계산하기 위한 기록용, 매 틱 갱신)
         #self.bigDamage = 0 #한번에 500이상의 큰 대미지가 들어간 횟수(핵이 500이상)
+
+        # 정찰부대에서 사용하는 플래그
+        self.enemy_alert=0
+        self.die_alert=0 # 레이븐 죽었을때
+        self.is_ghost=0 # 적이 유령인지
+        self.last_pos=(0,0)
         
         #self.productorder = 0 #생산명령 들어간 횟수
         #self.productdone = 0 #생산명령 수행 횟수
@@ -813,18 +898,13 @@ class Bot(sc2.BotAI):
             return list()
 
         actions = list() # 이번 step에 실행할 액션 목록
-        print("1111택틱: ", self.tactic_strategy)
 
         if self.time - self.last_step_time >= self.step_interval:
             #택틱 변경
             self.product_strategy, self.nuke_strategy = self.set_strategy()
             self.last_step_time = self.time
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-            print("-------택틱: ", self.tactic_strategy)
-            print("-------컴뱃: ", self.combat_strategy)
-=======
             print("-------택틱: ", self.product_strategy)
+
 
             self.assign_manager.reassign() #이상하게 배치된 경우 있으면 제배치
 
