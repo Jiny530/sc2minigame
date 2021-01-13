@@ -59,17 +59,17 @@ class Attack_Team_Manager(object):
         self.target_unit_counts = {
             UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
             UnitTypeId.MARINE: 25,
-            UnitTypeId.MARAUDER: 15,
+            UnitTypeId.MARAUDER: 0,
             UnitTypeId.REAPER: 0,
             UnitTypeId.GHOST: 0,
             UnitTypeId.HELLION: 0,
-            UnitTypeId.SIEGETANK: 3,
+            UnitTypeId.SIEGETANK: 0,
             UnitTypeId.THOR: 0,
-            UnitTypeId.MEDIVAC: 3,
+            UnitTypeId.MEDIVAC: 0,
             UnitTypeId.VIKINGFIGHTER: 0,
             UnitTypeId.BANSHEE: 0,
             UnitTypeId.RAVEN: 0,
-            UnitTypeId.BATTLECRUISER: 0,
+            UnitTypeId.BATTLECRUISER: 3,
         }
         self.evoked = dict()
 
@@ -192,8 +192,8 @@ class Defense_Team_Manager(object):
 
         self.target_unit_counts = {
             UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
-            UnitTypeId.MARINE: 10,
-            UnitTypeId.MARAUDER: 5,
+            UnitTypeId.MARINE: 25,
+            UnitTypeId.MARAUDER: 0,
             UnitTypeId.REAPER: 0,
             UnitTypeId.GHOST: 0,
             UnitTypeId.HELLION: 0,
@@ -421,17 +421,17 @@ class RatioManager(object):
             self.target_unit_counts = {
                 UnitTypeId.COMMANDCENTER: 0,  # 추가 사령부 생산 없음
                 UnitTypeId.MARINE: 25,
-                UnitTypeId.MARAUDER: 15,
+                UnitTypeId.MARAUDER: 0,
                 UnitTypeId.REAPER: 0,
                 UnitTypeId.GHOST: 0,
                 UnitTypeId.HELLION: 0,
-                UnitTypeId.SIEGETANK: 3,
+                UnitTypeId.SIEGETANK: 0,
                 UnitTypeId.THOR: 0,
-                UnitTypeId.MEDIVAC: 3,
+                UnitTypeId.MEDIVAC: 0,
                 UnitTypeId.VIKINGFIGHTER: 0,
                 UnitTypeId.BANSHEE: 0,
                 UnitTypeId.RAVEN: 0,
-                UnitTypeId.BATTLECRUISER: 0,
+                UnitTypeId.BATTLECRUISER: 3,
             }
             self.evoked = dict()
 
@@ -550,8 +550,8 @@ class Bot(sc2.BotAI):
         
         # -----전략 변경 -----
         if self.step_manager.step % 100 == 0:
-            i = randint(0, 1) #일단 랜덤으로 변경
-            self.tactics = Tactics(i)
+            #i = randint(0, 1) #일단 랜덤으로 변경
+            self.tactics = Tactics(0)
 
         
 
