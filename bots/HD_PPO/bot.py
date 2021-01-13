@@ -277,13 +277,7 @@ class CombatManager(object):
                                     # 1초 이전에 스팀팩을 사용한 적이 없음
                                     actions.append(unit(AbilityId.EFFECT_STIM))
                                     self.evoked[(unit.tag, AbilityId.EFFECT_STIM)] = self.bot.time
-                        
-                        
-<<<<<<< Updated upstream
-=======
-
->>>>>>> Stashed changes
-
+ 
                     ##-----토르-----
                     if unit.type_id in (UnitTypeId.THOR, UnitTypeId.THORAP):
                         """
@@ -435,16 +429,8 @@ class CombatManager(object):
                 elif len(self.bot.combatArray) < 1 :
                     actions.append(unit.move(self.bot.cc - 5))
                 else: 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
                     actions.append(unit.move(self.bot.units.closest_to(unit)))
                     #print("대기중")"""
-=======
-                    actions.append(unit.move(self.bot.units.closest_to(unit)))"""
->>>>>>> Stashed changes
-=======
-                    actions.append(unit.move(self.bot.units.closest_to(unit)))"""
->>>>>>> Stashed changes
 
         # -----유닛 명령 생성 끝-----
         return actions
@@ -580,9 +566,7 @@ class RatioManager(object):
         elif self.bot.product_strategy == ProductStrategy.RECON: #recon생산
             self.bot.next_unit = trainOrder[1]  
         #print("11111생산요청: ", self.bot.trainOrder)
-        
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
+
         
         """
         #if self.bot.tactic_strategy == TacticStrategy.ATTACK or self.bot.tactic_strategy == TacticStrategy.MULE:
@@ -655,10 +639,6 @@ class RatioManager(object):
 
         print("ratio뽑힌애--------: ",next_unit)
         return next_unit"""
-=======
->>>>>>> Stashed changes
-=======
->>>>>>> Stashed changes
 
 
 class AssignManager(object):
@@ -684,14 +664,7 @@ class AssignManager(object):
 
         #이미 할당된 유닛의 태그 빼고
         units_tag = units_tag - self.bot.combatArray - self.bot.reconArray - self.bot.nukeArray
-        
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-        #if self.bot.tactic_strategy == TacticStrategy.ATTACK or self.bot.tactic_strategy == TacticStrategy.MULE:
-        if self.bot.tactic_strategy == TacticStrategy.ATTACK:
-=======
-=======
->>>>>>> Stashed changes
+
         #유닛 타입에 따라 array 배정
         for tag in units_tag:
             unit = self.bot.units.find_by_tag(tag)
@@ -852,10 +825,6 @@ class Bot(sc2.BotAI):
             print("-------컴뱃: ", self.combat_strategy)
 =======
             print("-------택틱: ", self.product_strategy)
->>>>>>> Stashed changes
-=======
-            print("-------택틱: ", self.product_strategy)
->>>>>>> Stashed changes
 
             self.assign_manager.reassign() #이상하게 배치된 경우 있으면 제배치
 

@@ -17,36 +17,15 @@ class CommandType(bytes, Enum):
     ERROR = b'\x04'
 
 
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-class TacticStrategy(Enum):
-    ATTACK = 0 
-    RECON = 1
-    NUKE = 2
-    #MULE = 3
-
-
-class CombatStrategy(Enum):
-=======
-=======
->>>>>>> Stashed changes
 class ProductStrategy(Enum):
     MARINE = UnitTypeId.MARINE
     THOR = UnitTypeId.THOR
     
     
 class NukeStrategy(Enum):
-<<<<<<< Updated upstream
->>>>>>> Stashed changes
     OFFENSE = 0 
     DEFENSE = 1
 
-
-=======
-    OFFENSE = 0 
-    DEFENSE = 1
-
->>>>>>> Stashed changes
 
 Sample = namedtuple('Sample', 's, a, r, done, logp, value')
 
