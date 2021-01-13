@@ -17,15 +17,21 @@ class CommandType(bytes, Enum):
     ERROR = b'\x04'
 
 
-class TacticStrategy(Enum):
-    ATTACK = 0 
-    RECON = 1
-    NUKE = 2
+class ProductStrategy(Enum):
+    MARINE = UnitTypeId.MARINE
+    THOR = UnitTypeId.THOR
     
-class CombatStrategy(Enum):
+ProductStrategy.to_index = dict()
+ProductStrategy.to_type_id = dict()
+
+for idx, strategy in enumerate(ProductStrategy):
+    ProductStrategy.to_index[strategy.value] = idx
+    ProductStrategy.to_type_id[idx] = strategy.value
+
+    
+class NukeStrategy(Enum):
     OFFENSE = 0 
     DEFENSE = 1
-    WAIT = 2
 
 Sample = namedtuple('Sample', 's, a, r, done, logp, value')
 
@@ -35,5 +41,5 @@ class MessageType(Enum):
     EXCEPTION = 1
 
 
-N_FEATURES = 5
-N_ACTIONS = len(TacticStrategy)
+N_FEATURES = 6+2 #state가 6개+ProductStrategy의 2개
+N_ACTIONS = len(ProductStrategy) * len(NukeStrategy)

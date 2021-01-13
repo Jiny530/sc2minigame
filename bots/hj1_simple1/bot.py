@@ -74,7 +74,6 @@ class Bot(sc2.BotAI):
             if self.die_alert == 2:
                 self.die_alert = 1 # 리콘이 죽었다 => 다른곳에서 써먹을 플래그
 
-
         elif ravens.amount > 0:
             raven = ravens.first
             
@@ -129,14 +128,11 @@ class Bot(sc2.BotAI):
                     self.is_ghost == 0
                 else :
                     print("에너미해치움")
-                    
             elif self.is_ghost: # 정면방향 고스트였을경우
                 unit = threaten(UnitTypeId.GHOST)
                 if unit.amount == 0:
                     self.is_ghost = 0
                     self.enemy_alert=0
                     raven.distance_to(self.patrol_pos[self.a])
-                
-            
             
         await self.do_actions(actions)
