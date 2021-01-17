@@ -78,50 +78,48 @@ class NukeManager(object):
             self.ghost_pos = 95.5
             self.enemy_pos= 32.5
 
-
-        # 마지막 명령이 발행된지 10초가 넘었으면 리워드 -1?
-        # 택틱마다 일정시간 지나도 명령 발행 안되면 리워드 -1 
+    # 고스트가 우선으로 생성되게 해야할까?
 
     async def step(self):
         actions = list() # 이번 step에 실행할 액션 목록
 
+        # 고스트 생산명령 내릴준비
         cc = self.bot.units(UnitTypeId.COMMANDCENTER).first
         cc_abilities = await self.bot.get_available_abilities(cc)
         ghosts = self.bot.units(UnitTypeId.GHOST)
         
+        # 고스트 개체수 없으면 생산시작
         if ghosts.amount > 0:
             if self.dead == 0:
                 self.dead = 3 #고스트 아직 안죽음
             ghost = ghosts.first #고스트는 딱 하나라고 가정
             
-            if ghost.distance_to(Point2((self.ghost_pos,30))) > 10: # 기지와 멀리 떨어졌을때 적 발견시 은폐
+            # 기지와 떨어졌을때 적 발견시 은폐
+            if ghost.distance_to(Point2((self.ghost_pos,30))) > 10: 
                 threaten = self.bot.known_enemy_units.closer_than(5, ghost.position)
                 if threaten.amount > 0:
                     actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
-
+            
+            # 전술핵 생산 가능(자원이 충분)하면 전술핵 생산
             if AbilityId.BUILD_NUKE in cc_abilities:
-                # 전술핵 생산 가능(자원이 충분)하면 전술핵 생산
                 actions.append(cc(AbilityId.BUILD_NUKE))
                 #print(ghosts.first.position)
 
-
+            # 고스트 경로지정
             if self.dead==1: #윗길에서 죽었으면 아랫길로
                 self.bot.nuke_strategy=2
             elif self.dead==2: #아랫길에서 죽었으면 윗길로
                 self.bot.nuke_strategy=1
             
-            self.dead = 3
+            self.dead = 3 
 
-            if self.bot.nuke_strategy == 1: # 위로 가라
+            # 위로 가라
+            if self.bot.nuke_strategy == 1: 
                 
+                # 위치 이동
                 if ghost.distance_to(Point2((self.ghost_pos,55))) > 3 and self.pos == 0:
                     actions.append(ghost.move(Point2((self.ghost_pos,55))))
                     self.pos=1
-                    '''
-                    # 이전에 위에서 죽은적 있으면 리워드 -5 // 이걸 전략 막 선택했을때 줘야하나?
-                    if self.dead == 1:
-                        self.bot.reward -= 0.1
-                        '''
 
                 if ghost.distance_to(Point2((self.ghost_pos,55))) == 0 and self.pos == 1:
                     #print(ghost.position)
@@ -132,7 +130,8 @@ class NukeManager(object):
                     #print(ghost.position)
                     self.pos=3
             
-            elif self.bot.nuke_strategy == 2: # 아래로 가라
+            # 아래로 가라
+            elif self.bot.nuke_strategy == 2: 
                 if ghost.distance_to(Point2((self.ghost_pos,10))) > 3 and self.pos == 0:
                     actions.append(ghost.move(Point2((self.ghost_pos,10))))
                     self.pos=1
