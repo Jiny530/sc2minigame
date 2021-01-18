@@ -71,6 +71,7 @@ class NukeManager(object):
         self.ghost_pos=0
         self.enemy_pos=0
         self.ghost_tag=0
+        self.before_stra=0
 
     def reset(self):
         if self.bot.enemy_start_locations[0].x == 95.5:
@@ -79,8 +80,6 @@ class NukeManager(object):
         else :
             self.ghost_pos = 95.5
             self.enemy_pos= 32.5
-
-    # @@고스트가 우선으로 생성되게 해야할까?
 
     async def step(self):
         actions = list() # 이번 step에 실행할 액션 목록
@@ -97,10 +96,12 @@ class NukeManager(object):
 
         if ghosts.amount > 0:
 
-            '''
-            # 고스트 경로지정
+            
             if self.dead == 0: #고스트 아직 안죽음
                 self.dead = 3 
+                self.before_stra = self.bot.nuke_strategy # 첫 전략
+                
+            '''
             elif self.dead==1: #윗길에서 죽었으면 아랫길로
                 self.bot.nuke_strategy=2
             elif self.dead==2: #아랫길에서 죽었으면 윗길로
@@ -108,13 +109,14 @@ class NukeManager(object):
             '''
             ghost = ghosts.first #고스트는 딱 한 개체만
             threaten = self.bot.known_enemy_units.closer_than(5, ghost.position)
-            
-            # 기지와 떨어졌을때 적 발견시 은폐
+            ravens = threaten(UnitTypeId.RAVEN)
+            turrets = threaten(UnitTypeId.AUTOTURRET)
+
+            # 기지와 떨어졌을때 적 발견시
             if ghost.distance_to(Point2((self.ghost_pos,30))) > 10 and threaten.amount > 0:
-                ravens = threaten(UnitTypeId.RAVEN)
-                turrets = threaten(UnitTypeId.AUTOTURRET)
-                # 가던길에 밤까마귀 있고 여러명이서 가던 중이었으면
-                if self.bot.nuke_strategy % 2 == 0 and nukeArray.amount > 1:
+                
+                # 여러명이서 가던 중이었으면
+                if self.bot.nuke_strategy % 2 == 0 and nuke_unit.amount > 1:
                     self.bot.nuke_reward += 0.1 # reward
                     if ravens.amount > 0:
                         for unit in nuke_units:
@@ -122,15 +124,9 @@ class NukeManager(object):
                     else :
                         for unit in nuke_units:
                             actions.append(unit.attack(threaten.closest_to(unit)))
-                actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
-                
-                
-
-                # @@미완
-                    
+                else : # 고스트 혼자이면 바로 은폐 쓰기
+                    actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
             
-            self.dead = 3 
-
             # 위로 가라
             if self.bot.nuke_strategy <= 2 and self.pos != 3: 
                 for unit in nuke_units:
@@ -162,13 +158,16 @@ class NukeManager(object):
                         self.pos=3 # 대기장소 도착
 
             if self.pos==3 and ghost.is_idle:
-                self.bot.ghost_ready = True # @@고스트 준비됐음 플레그, 핵 우선으로 생산할까??
+                self.bot.ghost_ready = True # @@고스트 준비됐음 플레그
                 ghost_abilities = await self.bot.get_available_abilities(ghost)
+
                 if AbilityId.TACNUKESTRIKE_NUKECALLDOWN in ghost_abilities and ghost.is_idle:
                     # 전술핵 발사 가능(생산완료)하고 고스트가 idle 상태이면, 적 본진에 전술핵 발사
                     actions.append(ghost(AbilityId.BEHAVIOR_CLOAKON_GHOST))
                     actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=self.bot.enemy_start_locations[0]))
                     self.nuke_time = self.bot.time
+
+                if 
 
         elif ghosts.amount==0 and self.dead==3 : #고스트 죽음 (amount==0)
             self.pos=0
@@ -176,7 +175,7 @@ class NukeManager(object):
 
             # @@핵 쏘는 도중 죽으면 마이너스?
             if self.bot.time - self.nuke_time < 6.0: 
-                self.bot.reward -= 0.1
+                self.bot.nuke_reward -= 0.1
 
             if self.bot.nuke_strategy == 1: #윗길로 갔었으면
                 self.dead=1 #위에서죽음 표시
@@ -771,7 +770,7 @@ class Bot(sc2.BotAI):
 
         # 핵 부대에서 사용하는 플래그
         self.die_count=0
-        self.abandun = False
+        self.ghost_ready = False
         
         #self.productorder = 0 #생산명령 들어간 횟수
         #self.productdone = 0 #생산명령 수행 횟수
