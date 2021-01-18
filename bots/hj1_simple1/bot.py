@@ -84,19 +84,19 @@ class Bot(sc2.BotAI):
                 if self.a==0 :
                     actions.append(raven.move(self.patrol_pos[0]))
                     if raven.distance_to(self.patrol_pos[0]) < 1:
-                        actions.append(raven.patrol(self.patrol_pos[1]))
-                        self.a=1
+                        actions.append(raven.move(self.patrol_pos[1]))
+                        self.a=5
                 elif self.a==1:
                     if raven.distance_to(self.patrol_pos[1]) < 1:
-                        actions.append(raven.patrol(self.patrol_pos[2]))
+                        actions.append(raven.move(self.patrol_pos[2]))
                         self.a=2
                 elif self.a==2:    
                     if raven.distance_to(self.patrol_pos[2]) < 1:
-                        actions.append(raven.patrol(self.patrol_pos[3]))
+                        actions.append(raven.move(self.patrol_pos[3]))
                         self.a=3
                 elif self.a==3:
                     if raven.distance_to(self.patrol_pos[3]) < 1:
-                        actions.append(raven.patrol(self.patrol_pos[0]))
+                        actions.append(raven.move(self.patrol_pos[0]))
                         self.a=0
             
             threaten = self.known_enemy_units.closer_than(5, raven.position)
