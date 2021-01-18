@@ -234,7 +234,6 @@ class ReconManager(object):
                     elif threaten.amount == 1: #적이 하나면 던지고 도망가면되니까 컴뱃x
                         self.bot.have_to_go = 0
                 else: self.bot.have_to_go = 0 #적이 없으면 안움직이기(돌아가게)        
-                    
 
             if threaten.amount > 0:
                 target = threaten.closest_to(raven.position)
