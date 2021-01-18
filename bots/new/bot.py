@@ -116,7 +116,7 @@ class NukeManager(object):
             if ghost.distance_to(Point2((self.ghost_pos,30))) > 10 and threaten.amount > 0:
                 
                 # 여러명이서 가던 중이었으면
-                if self.bot.nuke_strategy % 2 == 0 and nuke_unit.amount > 1:
+                if self.pos != 4 and self.bot.nuke_strategy % 2 == 0 and nuke_unit.amount > 1:
                     self.bot.nuke_reward += 0.1 # reward
                     if ravens.amount > 0:
                         for unit in nuke_units:
@@ -128,7 +128,7 @@ class NukeManager(object):
                     actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
             
             # 위로 가라
-            if self.bot.nuke_strategy <= 2 and self.pos != 3: 
+            if self.bot.nuke_strategy <= 1 and self.pos != 3: 
                 for unit in nuke_units:
                 # 위치 이동
                     if unit.distance_to(Point2((self.ghost_pos,55))) > 3 and self.pos == 0:
@@ -143,7 +143,7 @@ class NukeManager(object):
                         self.pos=3 # 대기장소 도착
             
             # 아래로 가라
-            elif self.bot.nuke_strategy >= 3 and self.pos != 3: 
+            elif self.bot.nuke_strategy >= 2 and self.pos != 3: 
                 # 위치 이동
                 for unit in nuke_units:
                     if unit.distance_to(Point2((self.ghost_pos,10))) > 3 and self.pos == 0:
@@ -157,7 +157,7 @@ class NukeManager(object):
                     if unit.distance_to(Point2((self.enemy_pos,10))) < 3:
                         self.pos=3 # 대기장소 도착
 
-            if self.pos==3 and ghost.is_idle:
+            if self.pos==3 or self.pos==4 and ghost.is_idle:
                 self.bot.ghost_ready = True # @@고스트 준비됐음 플레그
                 ghost_abilities = await self.bot.get_available_abilities(ghost)
 
@@ -166,8 +166,8 @@ class NukeManager(object):
                     actions.append(ghost(AbilityId.BEHAVIOR_CLOAKON_GHOST))
                     actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=self.bot.enemy_start_locations[0]))
                     self.nuke_time = self.bot.time
+                    self.pos==4
 
-                if 
 
         elif ghosts.amount==0 and self.dead==3 : #고스트 죽음 (amount==0)
             self.pos=0
