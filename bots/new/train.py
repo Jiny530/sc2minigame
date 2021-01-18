@@ -126,7 +126,7 @@ class Trajectory:
     def __len__(self):
         return len(self.state) - 1
 
-
+ 
 class Trainer:
     def __init__(self, args):
         self.tasks = [self.train_step]
