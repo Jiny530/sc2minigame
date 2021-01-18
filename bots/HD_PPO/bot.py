@@ -100,14 +100,13 @@ class NukeManager(object):
                 self.dead = 3 #고스트 아직 안죽음
             ghost = ghosts.first #고스트는 딱 하나라고 가정
             
-<<<<<<< Updated upstream
-=======
+
             if ghost.distance_to(Point2((self.ghost_pos,30))) > 10: # 기지와 멀리 떨어졌을때 적 발견시 은폐
-                self.bot.threaten = self.bot.known_enemy_units.closer_than(5, ghost.position)
-                if self.bot.threaten.amount > 0:
+                threaten = self.bot.known_enemy_units.closer_than(5, ghost.position)
+                if threaten.amount > 0:
                     actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
+
             """
->>>>>>> Stashed changes
             if AbilityId.BUILD_NUKE in cc_abilities:
                 # 전술핵 생산 가능(자원이 충분)하면 전술핵 생산
                 actions.append(cc(AbilityId.BUILD_NUKE))
@@ -175,6 +174,7 @@ class NukeManager(object):
 
         elif ghosts.amount==0 and self.dead==3 : #고스트 죽음 (amount==0)
             self.pos=0
+            self.bot.die_count+=1
             if self.bot.nuke_strategy == 1: #윗길로 갔었으면
                 self.dead=1 #위에서죽음 표시
             else:
@@ -197,9 +197,9 @@ class ReconManager(object):
 
     def reset(self):
         if self.bot.enemy_start_locations[0].x == 95.5:
-            self.patrol_pos = [Point2((32.5, 35)), Point2((37.5, 30)), Point2((32.5, 25)), Point2((27.5, 30))]
+            self.patrol_pos = [Point2((25.5, 37)), Point2((39.5, 37)), Point2((39.5, 23)), Point2((25.5, 23))]
         else :
-            self.patrol_pos = [Point2((95.5, 35)), Point2((105.5, 30)), Point2((95.5, 25)), Point2((90.5, 30))]
+            self.patrol_pos = [Point2((102.5, 37)), Point2((88.5, 37)), Point2((88.5, 23)), Point2((102.5, 23))]
         
         self.front= Point2((self.bot.start_location[0].x+10, 30))
         #self.p = queue.Queue() #tlqkf 왜안돼
@@ -209,27 +209,27 @@ class ReconManager(object):
 
 
     async def step(self):
-        actions = list()
+        actions = list() # 이번 step에 실행할 액션 목록
 
+        cc = self.bot.units(UnitTypeId.COMMANDCENTER).first
+        cc_abilities = await self.bot.get_available_abilities(cc)
         ravens = self.bot.units(UnitTypeId.RAVEN)
         
         if ravens.amount == 0:
-            '''
-            if self.can_afford(UnitTypeId.RAVEN):
+            if self.bot.can_afford(UnitTypeId.RAVEN):
                 # 고스트가 하나도 없으면 고스트 훈련
                 actions.append(cc.train(UnitTypeId.RAVEN))
-            '''
             if self.bot.die_alert == 2:
                 self.bot.die_alert = 1 # 리콘이 죽었다 => 다른곳에서 써먹을 플래그
 
+
         elif ravens.amount > 0:
             raven = ravens.first
-            self.bot.last_pos = raven.position
-
+            
             if self.bot.die_alert == 0 or self.bot.die_alert == 1:
                 self.bot.die_alert = 2 # 리콘 현재 존재함
             
-            if self.bot.enemy_alert == 0: #정찰
+            if self.bot.is_ghost == 0:
                 if self.a==0 :
                     actions.append(raven.move(self.patrol_pos[0]))
                     if raven.distance_to(self.patrol_pos[0]) < 1:
@@ -247,47 +247,20 @@ class ReconManager(object):
                     if raven.distance_to(self.patrol_pos[3]) < 1:
                         actions.append(raven.patrol(self.patrol_pos[0]))
                         self.a=0
-            
-<<<<<<< Updated upstream
-            '''
-            if raven.distance_to(self.patrol_pos[0]) == 0 :
-                actions.append(raven.patrol(self.patrol_pos[1]))#,self.patrol_pos[2]))#self.p))
-            '''
 
             threaten = self.bot.known_enemy_units.closer_than(5, raven.position)
             if threaten.amount > 0:
-                self.bot.enemy_alert=1 # 에너미 존재
                 target = threaten.closest_to(raven.position)
-                for unit in threaten:
-                    if unit == UnitTypeId.GHOST:
-                        self.bot.is_ghost = 1 # 핵 쏘러 옴
-                        target = unit
-                pos = raven.position.towards(target.position, 5)
-                pos = await self.bot.find_placement(UnitTypeId.AUTOTURRET, pos)
-                actions.append(raven(AbilityId.BUILDAUTOTURRET_AUTOTURRET, pos))
-
-            elif threaten.amount ==0 and self.bot.enemy_alert==1:
-=======
-            self.bot.threaten = self.bot.known_enemy_units.closer_than(5, raven.position)
-            if self.bot.threaten.amount > 0:
-                target = self.bot.threaten.closest_to(raven.position)
                 self.bot.last_pos = target.position
-                #print(self.bot.last_pos)
-                unit = self.bot.threaten(UnitTypeId.GHOST)
-
-                # 플래그 설정
-                if self.bot.threaten.amount > 10:
-                    self.bot.have_to_go = 2 #combat 전체 레콘으로 옮기도록 플래그
-                elif self.bot.threaten.amount > 5:
-                    self.bot.have_to_go = 1 #combat 일부 레콘으로 옮기도록 플래그
-                else: self.bot.have_to_go = 0 #둘다 아니면 안옮겨도 됨
+                print(self.bot.last_pos)
+                unit = threaten(UnitTypeId.GHOST)
                 
-                if unit.amount > 0: # 마주친 적 중에 고스트가 있으면
-                    #print(unit.amount)
+                if unit.amount > 0:
+                    print(unit.amount)
                     self.bot.is_ghost = 1 # 핵 쏘러 옴
                     target = unit.first
                     self.bot.last_pos = target.position
-                    #print(self.bot.last_pos)
+                    print(self.bot.last_pos)
 
                 if raven.distance_to(self.front) > 2 or self.bot.is_ghost: #정면방향이 아니거나, 고스트가 있을경우만 공격
                     self.bot.enemy_alert=1 # 에너미 존재
@@ -296,24 +269,21 @@ class ReconManager(object):
                     pos = await self.bot.find_placement(UnitTypeId.AUTOTURRET, pos)
                     actions.append(raven(AbilityId.BUILDAUTOTURRET_AUTOTURRET, pos))
 
-            elif self.bot.threaten.amount == 0 and self.bot.enemy_alert==1: #평범하게 적들 해치운 경우
->>>>>>> Stashed changes
+            elif threaten.amount == 0 and self.bot.enemy_alert==1: #평범하게 적들 해치운 경우
                 self.bot.enemy_alert=0 # 에너미 해치움
+                raven.distance_to(self.patrol_pos[self.a])
                 if self.bot.is_ghost == 1:
                     print("유령해치움")
                     self.bot.is_ghost == 0
                 else :
                     print("에너미해치움")
-<<<<<<< Updated upstream
-=======
-                    
+                        
             elif self.bot.is_ghost: # 정면방향 고스트였을경우
-                unit = self.bot.threaten(UnitTypeId.GHOST)
+                unit = threaten(UnitTypeId.GHOST)
                 if unit.amount == 0:
                     self.bot.is_ghost = 0
                     self.bot.enemy_alert=0
                     raven.distance_to(self.patrol_pos[self.a])
->>>>>>> Stashed changes
             
         return actions
 
@@ -862,14 +832,14 @@ class Bot(sc2.BotAI):
         #self.bigDamage = 0 #한번에 500이상의 큰 대미지가 들어간 횟수(핵이 500이상)
 
         # 정찰부대에서 사용하는 플래그
+        self.threaten=list()
         self.enemy_alert=0
         self.die_alert=0 # 레이븐 죽었을때
         self.is_ghost=0 # 적이 유령인지
-        self.last_pos=(0,0)
+        self.last_pos=(0,0) # 레이븐 실시간 위치
 
-
-        #누크 부대에서 사용하는 플래그
-        self.die_count = 0
+        # 핵 부대에서 사용하는 플래그
+        self.die_count=0
         
         #self.productorder = 0 #생산명령 들어간 횟수
         #self.productdone = 0 #생산명령 수행 횟수
