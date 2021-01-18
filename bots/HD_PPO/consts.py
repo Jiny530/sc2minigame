@@ -30,8 +30,10 @@ for idx, strategy in enumerate(ProductStrategy):
 
     
 class NukeStrategy(Enum):
-    OFFENSE = 0
-    DEFENSE = 1
+    UPAlone = 0
+    UPTogether = 1
+    DownAlone = 2
+    DownTogether = 3
 
 Sample = namedtuple('Sample', 's, a, r, done, logp, value')
 

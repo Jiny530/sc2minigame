@@ -580,7 +580,7 @@ class ProductManager(object):
         """
         actions = list()
         cc_abilities = await self.bot.get_available_abilities(self.bot.cc)
-        print(self.bot.ghost_ready)
+        #print(self.bot.ghost_ready)
         #핵 우선생산
         if self.bot.ghost_ready:
             if AbilityId.BUILD_NUKE in cc_abilities:
@@ -703,7 +703,7 @@ class AssignManager(object): #뜯어고쳐야함
                 pass
             elif unit.type_id is UnitTypeId.NUKE: #핵은 pass
                 pass
-            elif unit.type_id is UnitTypeId.GHOST: #고스트는 pass
+            elif unit.type_id is UnitTypeId.GHOST: #고스트는 nuke
                 self.bot.nukeArray.add(unit.tag)
             elif unit.type_id in (UnitTypeId.THOR, UnitTypeId.THORAP): #토르는 컴뱃으로
                 self.bot.combatArray.add(unit.tag)
@@ -718,15 +718,22 @@ class AssignManager(object): #뜯어고쳐야함
         #print("nuke:", len(self.bot.nukeArray))
         #print("recon:", len(self.bot.reconArray))
         #print("combat:", len(self.bot.combatArray))
-
+        cc = self.bot.units(UnitTypeId.COMMANDCENTER).first
+        nuke_units = self.bot.units.tags_in(self.bot.nukeArray)
+        combat_units = self.bot.units.tags_in(self.bot.combatArray)
+        #if len(self.bot.combatArray) >= 10:
+            #rint("에러확인1:",combat_units(UnitTypeId.MARINE).closest_to(cc).tag)
+        #if len(self.bot.nukeArray) >= 1:
+            #print("에러확인2:",nuke_units(UnitTypeId.MARINE).amount)
 
         if self.bot.fighting == 0: #컴뱃이 싸우고 있지 않음
-            #print("have_to_go: ", self.bot.have_to_go)
+            #------recon-----
             if self.bot.have_to_go == 1: #일부만 와라
                 if len(self.bot.combatArray) >= 10: #그때 컴뱃에 10명은 넘어야(중간에 지켜야해서)
-                    while len(self.bot.combatArray) == 5: #recon이 5명 될때까지
-                        tag = self.bot.combatArray.pop() #랜덤하게 뽑음(제거)
+                    while len(self.bot.reconArray) == 5: #recon이 5명 될때까지
+                        tag = combat_units(UnitTypeId.MARINE).closest_to(cc).tag #해병중 cc에 가까운애 골라내기
                         self.bot.reconArray.add(tag) #recon으로 이동
+                        self.bot.combatArray.remove(tag)
                         #print("이동완료1", len(self.bot.reconArray), "/", len(self.bot.combatArray))
                 """
                 #해병 5명 뽑기
@@ -742,6 +749,16 @@ class AssignManager(object): #뜯어고쳐야함
                     self.bot.reconArray.add(tag) #combat의 전부를 recon으로
                     #print("이동완료2", len(self.bot.reconArray), "/", len(self.bot.combatArray))
                 self.bot.combatArray.clear() #그리고 combat 전체삭제
+
+            #-----nuke-----
+            #고스트가 새로 생성되어야하고 + 전략이 여러명이면 배정(해병)
+            if  self.bot.units(UnitTypeId.GHOST).amount == 0 and self.bot.nuke_strategy%2==1:
+                if self.bot.die_count <= 3: #combat이 defense인 상태
+                    if len(self.bot.combatArray) >= 10: #그때 컴뱃에 10명은 넘어야(중간에 지켜야해서)
+                        while nuke_units(UnitTypeId.MARINE).amount == 5:
+                            tag = self.bot.combatArray.pop() #랜덤하게 뽑음(제거)
+                            self.bot.nukeArray.add(tag) #nuke로 이동
+            
     
         elif self.bot.fighting == 1: #컴뱃이 싸우고 있음
             if len(self.bot.reconArray) >= 5: #몇명이 빠져있으면 돌아와라
@@ -750,6 +767,11 @@ class AssignManager(object): #뜯어고쳐야함
                     #print("돌아옴", len(self.bot.reconArray),"/", len(self.bot.combatArray))
                 self.bot.reconArray.clear() #그리고 recon 전체삭제
                 #print("완전돌아옴", len(self.bot.reconArray),"/", len(self.bot.combatArray))
+            if nuke_units(UnitTypeId.MARINE).amount >= 5: #몇명이 빠져있으면 돌아와라
+                for tag in self.bot.nukeArray:
+                    self.bot.combatArray.add(tag) #nuke의 전부를 combat으로
+                    #print("돌아옴", len(self.bot.reconArray),"/", len(self.bot.combatArray))
+                self.bot.nukeArray.clear() #그리고 recon 전체삭제
                 
 
 
@@ -886,7 +908,7 @@ class Bot(sc2.BotAI):
         self.last_step_time = -self.step_interval
 
         self.product_strategy = ProductStrategy.MARINE.value
-        self.nuke_strategy = NukeStrategy(1) #0,1
+        self.nuke_strategy = 0 #0,1,2,3
         #self.trainOrder = [UnitTypeId.MARINE, UnitTypeId.MARINE, None] #Combat,Recon,Nuke
         self.trainOrder = [UnitTypeId.MARINE, UnitTypeId.MARINE] #Combat,Recon,Nuke
         self.evoked = dict() #생산명령 시간 체크
@@ -927,6 +949,9 @@ class Bot(sc2.BotAI):
                 else :
                     self.nuke_reward += 0.001
             ## print("-------생산택틱: ", self.product_strategy)
+            #nuke reward 초기화
+            self.nuke_reward = 0
+            
 
             self.assign_manager.reassign() #이상하게 배치된 경우 있으면 제배치
 
@@ -961,7 +986,7 @@ class Bot(sc2.BotAI):
             self.productIng = 0 #생산명령 수행했다고 바꿔줌 
 
 
-        
+        #print(self.nuke_strategy)
         #actions += await self.attack_team_manager.step()
         
         #actions += await self.product_manager.product(self.next_unit) #생산
@@ -1009,7 +1034,8 @@ class Bot(sc2.BotAI):
         state[2] = min(1.0, self.vespene / 1000)
         state[3] = min(1.0, self.time / 360)
         state[4] = min(1.0, self.state.score.total_damage_dealt_life / 2500)
-        state[5] = len(self.combatArray) #combat 부대의 유닛 수 - combat결정용 state
+        state[5] = self.nuke_reward
+        state[6] = len(self.combatArray) #combat 부대의 유닛 수 - combat결정용 state
         for unit in self.units.not_structure:
             if unit in self.units.tags_in(self.combatArray):
                 if unit.type_id is not UnitTypeId.MULE:
@@ -1040,22 +1066,23 @@ class Bot(sc2.BotAI):
                 action = logp.exp().multinomial(num_samples=1).item()
         product_strategy = ProductStrategy.to_type_id[action // len(NukeStrategy)]
         nuke_strategy = NukeStrategy(action % len(NukeStrategy))
+        #nuke_strategy = action % len(NukeStrategy)
         # product_strategy = ProductStrategy.to_type_id(action // (len(NukeStrategy)*len(mule_strategy)))
         # nuke_strategy = NukeStrategy(action // len(NukeStrategy))
         # mule_strategy = MuleStrategy(action % len(MuleStrategy))
-        return product_strategy, nuke_strategy
+        return product_strategy, nuke_strategy.value
 
 
     def on_end(self, game_result):
         if self.sock is not None:
-            score = 1. if game_result is Result.Victory else -1.
-            """
+            #score = 1. if game_result is Result.Victory else -1.
+            
             if game_result is Result.Victory:
                 score = 0.5
             else: score = -0.5
-            if self.bigDamage > 0:  #한번에 큰 대미지 넣은 횟수만큼
-                score += self.bigDamage * 0.05
-            # print("리워드: ", score)"""
+            if self.nuke_reward > 0:  #한번에 큰 대미지 넣은 횟수만큼
+                score += self.nuke_reward
+            # print("리워드: ", score)
             self.sock.send_multipart((
                 CommandType.SCORE, 
                 pickle.dumps(self.game_id),
