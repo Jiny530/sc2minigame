@@ -89,12 +89,15 @@ class NukeManager(object):
         cc = self.bot.units(UnitTypeId.COMMANDCENTER).first
         cc_abilities = await self.bot.get_available_abilities(cc)
         ghosts = self.bot.units(UnitTypeId.GHOST)
+        nuke_units = self.bot.units.tags_in(self.bot.nukeArray)
         
         # 생산
         if ghosts.amount == 0:
             actions.append(cc.train(UnitTypeId.GHOST))
 
         if ghosts.amount > 0:
+
+            '''
             # 고스트 경로지정
             if self.dead == 0: #고스트 아직 안죽음
                 self.dead = 3 
@@ -102,68 +105,61 @@ class NukeManager(object):
                 self.bot.nuke_strategy=2
             elif self.dead==2: #아랫길에서 죽었으면 윗길로
                 self.bot.nuke_strategy=1
-            
+            '''
             ghost = ghosts.first #고스트는 딱 한 개체만
+            threaten = self.bot.known_enemy_units.closer_than(5, ghost.position)
             
             # 기지와 떨어졌을때 적 발견시 은폐
-            if ghost.distance_to(Point2((self.ghost_pos,30))) > 10: 
-                threaten = self.bot.known_enemy_units.closer_than(5, ghost.position)
-                if threaten.amount > 0:
-                    actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
-                    raven = threaten(UnitTypeId.RAVEN)
-                    turret = threaten(UnitTypeId.AUTOTURRET)
-                    nuke_units = self.bot.units.tags_in(self.bot.nukeArray)
-
-            
-            # 전술핵 생산 가능하면 전술핵 생산 @@ 이거 나중에 우선생산으로 할지
-            if AbilityId.BUILD_NUKE in cc_abilities:
-                actions.append(cc(AbilityId.BUILD_NUKE))
-                #print(ghosts.first.position)
-
-            if threaten.amount > 0:
-                target = threaten.closest_to(raven.position)
-                self.bot.last_pos = target.position
-                print(self.bot.last_pos)
-                unit = threaten(UnitTypeId.GHOST)
+            if ghost.distance_to(Point2((self.ghost_pos,30))) > 10 and threaten.amount > 0:
+                ravens = threaten(UnitTypeId.RAVEN)
+                turrets = threaten(UnitTypeId.AUTOTURRET)
+                # 가던길에 밤까마귀 있고 여러명이서 가던 중이었으면
+                if self.bot.nuke_strategy % 2 == 0 and nukeArray.amount > 1:
+                    self.bot.nuke_reward += 0.1 # reward
+                    if ravens.amount > 0:
+                        for unit in nuke_units:
+                            actions.append(unit.attack(ravens.closest_to(unit)))
+                    else :
+                        for unit in nuke_units:
+                            actions.append(unit.attack(threaten.closest_to(unit)))
+                actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
                 
-                if unit.amount > 0:
-                    print(unit.amount)
-                    self.bot.is_ghost = 1 # 핵 쏘러 옴
-                    target = unit.first
-                    self.bot.last_pos = target.position
-                    print(self.bot.last_pos)
+                
+
+                # @@미완
+                    
             
             self.dead = 3 
 
             # 위로 가라
-            if self.bot.nuke_strategy == 1 and self.pos != 3: 
-                
+            if self.bot.nuke_strategy <= 2 and self.pos != 3: 
+                for unit in nuke_units:
                 # 위치 이동
-                if ghost.distance_to(Point2((self.ghost_pos,55))) > 3 and self.pos == 0:
-                    actions.append(ghost.move(Point2((self.ghost_pos,55)))) 
-                    self.pos=1 # 올라가기
+                    if unit.distance_to(Point2((self.ghost_pos,55))) > 3 and self.pos == 0:
+                        actions.append(unit.move(Point2((self.ghost_pos,55)))) 
+                        self.pos=1 # 올라가기
 
-                if ghost.distance_to(Point2((self.ghost_pos,55))) == 0 and self.pos == 1:
-                    actions.append(ghost.move(Point2((self.enemy_pos,55))))
-                    self.pos=2 # 옆으로 가기
+                    if unit.distance_to(Point2((self.ghost_pos,55))) == 0 and self.pos == 1:
+                        actions.append(unit.move(Point2((self.enemy_pos,55))))
+                        self.pos=2 # 옆으로 가기
 
-                if ghost.distance_to(Point2((self.enemy_pos,55))) < 3:
-                    self.pos=3 # 대기장소 도착
+                    if unit.distance_to(Point2((self.enemy_pos,55))) < 3:
+                        self.pos=3 # 대기장소 도착
             
             # 아래로 가라
-            elif self.bot.nuke_strategy == 2 and self.pos != 3: 
-                if ghost.distance_to(Point2((self.ghost_pos,10))) > 3 and self.pos == 0:
-                    actions.append(ghost.move(Point2((self.ghost_pos,10))))
-                    self.pos=1
-                    if self.dead == 2:
-                        self.bot.reward -= 0.1
+            elif self.bot.nuke_strategy >= 3 and self.pos != 3: 
+                # 위치 이동
+                for unit in nuke_units:
+                    if unit.distance_to(Point2((self.ghost_pos,10))) > 3 and self.pos == 0:
+                        actions.append(unit.move(Point2((self.ghost_pos,55)))) 
+                        self.pos=1 # 올라가기
 
-                if ghost.distance_to(Point2((self.ghost_pos,10))) == 0 and self.pos == 1:
-                    actions.append(ghost.move(Point2((self.enemy_pos,10))))
-                    self.pos=2
+                    if unit.distance_to(Point2((self.ghost_pos,10))) == 0 and self.pos == 1:
+                        actions.append(unit.move(Point2((self.enemy_pos,55))))
+                        self.pos=2 # 옆으로 가기
 
-                if ghost.distance_to(Point2((self.enemy_pos,10))) < 3:
-                    self.pos=3
+                    if unit.distance_to(Point2((self.enemy_pos,10))) < 3:
+                        self.pos=3 # 대기장소 도착
 
             if self.pos==3 and ghost.is_idle:
                 self.bot.ghost_ready = True # @@고스트 준비됐음 플레그, 핵 우선으로 생산할까??
@@ -568,9 +564,6 @@ class ProductManager(object):
         return actions     
                      
 
-
-
-
 class RatioManager(object):
     """
     부대에 따라 생성할 유닛 비율 결정하는 매니저
@@ -639,8 +632,7 @@ class RatioManager(object):
         elif self.bot.product_strategy == ProductStrategy.RECON: #recon생산
             self.bot.next_unit = trainOrder[1]  
         #print("11111생산요청: ", self.bot.trainOrder)
-
-        
+     
 
 class AssignManager(object): #뜯어고쳐야함
     """
@@ -760,7 +752,7 @@ class Bot(sc2.BotAI):
         self.combatArray = set()
         self.reconArray = set()
         self.nukeArray = set()
-        self.reward = 0 
+        self.nuke_reward = 0 
         self.nuke_strategy=0
         #self.trainOrder=list()
         #self.next_unit = UnitTypeId.MARINE
@@ -793,7 +785,7 @@ class Bot(sc2.BotAI):
         self.last_step_time = -self.step_interval
 
         self.product_strategy = ProductStrategy.MARINE.value
-        self.nuke_strategy = 1 #0,1
+        self.nuke_strategy = 1 #0,1,2,3
         #self.trainOrder = [UnitTypeId.MARINE, UnitTypeId.MARINE, None] #Combat,Recon,Nuke
         self.trainOrder = [UnitTypeId.MARINE, UnitTypeId.MARINE] #Combat,Recon,Nuke
         self.evoked = dict() #생산명령 시간 체크
