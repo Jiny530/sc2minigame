@@ -921,7 +921,7 @@ class Bot(sc2.BotAI):
             #택틱 변경
             before = self.nuke_strategy
             self.product_strategy, self.nuke_strategy = self.set_strategy()
-            if self.bot.units(UnitTypeId.GHOST).amount > 0:
+            if self.units(UnitTypeId.GHOST).amount > 0:
                 if before != self.nuke_strategy:
                     self.nuke_reward -= 0.001
                 else :
