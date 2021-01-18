@@ -401,7 +401,7 @@ class CombatManager(object):
                     ##-----해병과 불곰-----
                     if unit.type_id in (UnitTypeId.MARINE, UnitTypeId.MARAUDER):
                         #OFFENSE
-                        if unit.distance_to(target) < 15:
+                        if self.mode == 1 and unit.distance_to(target) < 15:
                             # 유닛과 목표의 거리가 15이하일 경우 스팀팩 사용
                             if not unit.has_buff(BuffId.STIMPACK) and unit.health_percentage > 0.5:
                                 # 현재 스팀팩 사용중이 아니며, 체력이 50% 이상
@@ -862,7 +862,7 @@ class Bot(sc2.BotAI):
         self.last_step_time = -self.step_interval
 
         self.product_strategy = ProductStrategy.MARINE.value
-        self.nuke_strategy = 1 #0,1,2,3
+        self.nuke_strategy = NukeStrategy(1) #0,1
         #self.trainOrder = [UnitTypeId.MARINE, UnitTypeId.MARINE, None] #Combat,Recon,Nuke
         self.trainOrder = [UnitTypeId.MARINE, UnitTypeId.MARINE] #Combat,Recon,Nuke
         self.evoked = dict() #생산명령 시간 체크
@@ -915,7 +915,7 @@ class Bot(sc2.BotAI):
 
             #생산
             #actions += await self.product_manager.product(self.next_unit) #생산
-            actions += self.train_action() #생산
+            actions += await self.train_action() #생산
             self.productIng = 1 #생산명령 들어갔다고 바꿔줌
 
         #생산 명령이 들어갔다면
@@ -947,13 +947,21 @@ class Bot(sc2.BotAI):
         ## print("한거: ",actions)
 
 
-    def train_action(self):
+    async def train_action(self):
         #
         # 사령부 명령 생성
         #
         actions = list()
         next_unit = self.product_strategy
-        if self.can_afford(next_unit):
+
+        cc_abilities = await self.get_available_abilities(self.cc)
+        #핵 우선생산
+        if self.ghost_ready:
+            if AbilityId.BUILD_NUKE in cc_abilities:
+                # 전술핵 생산 가능(자원이 충분)하면 전술핵 생산
+                actions.append(self.cc(AbilityId.BUILD_NUKE))
+                self.ghost_ready = False #고스트는 핵쏘는 중이라 준비x
+        elif self.can_afford(next_unit):
             if self.time - self.evoked.get((self.cc.tag, 'train'), 0) > 1.0:
                 # 해당 유닛 생산 가능하고, 마지막 명령을 발행한지 1초 이상 지났음
                 actions.append(self.cc.train(next_unit))
