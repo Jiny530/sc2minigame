@@ -28,7 +28,7 @@ from termcolor import cprint
 import numpy as np
 from IPython import embed
 
-from ..nc3_simple3.bot import Bot as OppBot
+from ..HD_PPO.bot import Bot as OppBot
 from .bot import Bot as MyBot
 from .consts import CommandType
 from sc2_utils import kill_children_processes
