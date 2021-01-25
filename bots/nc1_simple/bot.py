@@ -33,11 +33,12 @@ class Bot(sc2.BotAI):
         #
         # 빌드 오더 생성
         # 
+        '''
         if len(self.build_order) == 0:
             for _ in range(5):
                 self.build_order.append(UnitTypeId.MARINE)
             self.build_order.append(UnitTypeId.MEDIVAC)
-
+        
         #
         # 사령부 명령 생성
         #
@@ -86,6 +87,6 @@ class Bot(sc2.BotAI):
             if wounded_units.exists:
                 wounded_unit = wounded_units.closest_to(medivac)  # 가장 가까운 체력이 100% 이하인 유닛
                 actions.append(medivac(AbilityId.MEDIVACHEAL_HEAL, wounded_unit))  # 유닛 치료 명령
-
+        '''
         await self.do_actions(actions)
 

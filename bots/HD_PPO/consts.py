@@ -16,17 +16,18 @@ class CommandType(bytes, Enum):
     SCORE = b'\x03'
     ERROR = b'\x04'
 
-
-class ProductStrategy(Enum):
-    MARINE = UnitTypeId.MARINE
-    THOR = UnitTypeId.THOR
+'''
+class CombatStrategy(Enum):
+    OFFENSE = 0
+    WAIT = 1
+    DEFENSE = 2
     
-ProductStrategy.to_index = dict()
-ProductStrategy.to_type_id = dict()
+CombatStrategy.to_index = dict()
+CombatStrategy.to_type_id = dict()
 
-for idx, strategy in enumerate(ProductStrategy):
-    ProductStrategy.to_index[strategy.value] = idx
-    ProductStrategy.to_type_id[idx] = strategy.value
+for idx, strategy in enumerate(CombatStrategy):
+    CombatStrategy.to_index[strategy.value] = idx
+    CombatStrategy.to_type_id[idx] = strategy.value'''
 
     
 class NukeStrategy(Enum):
@@ -43,5 +44,5 @@ class MessageType(Enum):
     EXCEPTION = 1
 
 
-N_FEATURES = 6+2 #state가 6개+ProductStrategy의 2개
-N_ACTIONS = len(ProductStrategy) * len(NukeStrategy)
+N_FEATURES = 5 #state가 5개
+N_ACTIONS = len(NukeStrategy)
