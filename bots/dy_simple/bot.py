@@ -87,23 +87,22 @@ class CombatManager(object):
     def moving(self, unit, pos, actions):
         t=0
         if len(self.position_list) == self.n : #리스트 갱신
+            print(len(self.position_list),"@@@@@@@@@",self.n)
             self.circle(pos)
         for tank in self.bot.tankArray: #이동
             if unit.tag == tank and t<=self.n:
                 actions.append(unit.move(self.position_list[t]))  
+                #print("!!!!!!!!!!!!!!!!!")
             t+=1
         if self.distance(unit.position, self.position_list[self.n]) < 1: #지정위치도착
             if unit.type_id == UnitTypeId.SIEGETANK: 
+                if self.move_check==0:
+                    print(self.move_check,"!!!!!!!!!!",self.n,"@@@@@@",t)
                 order = unit(AbilityId.SIEGEMODE_SIEGEMODE) #변신함
                 actions.append(order)
-            self.n = self.n + 1 
+        self.n = self.n + 1 
         
-
-
-    
-            
-
-
+    #region Description
     async def step(self):
         actions = list()
 
@@ -118,11 +117,7 @@ class CombatManager(object):
 
         
 
-        #방어시 집결 위치
-        #defense_position = self.bot.start_location + 0.25 * (enemy_cc.position - self.bot.start_location)
-        def_pos1 = self.bot.start_location + 0.25 * (enemy_cc.position - self.bot.start_location)
-        def_pos2 = self.bot.start_location + 0.5 * (enemy_cc.position - self.bot.start_location)
-        def_pos3 = self.bot.start_location + 0.75 * (enemy_cc.position - self.bot.start_location)
+       
 
         #wait_position = self.bot.start_location + 0.5 * (enemy_cc.position - self.bot.start_location)
         
@@ -181,32 +176,18 @@ class CombatManager(object):
             #print("pos3: ", def_pos3)
             #print("move_check: ", self.move_check)
             #print("strategy: ", self.bot.combat_strategy)
+    #endregion
         
-        ## -----인원수 체크-----
-        if self.bot.combat_units.amount > 20 and self.move_check == 0:
-            #print("20넘음")
-            for unit in self.bot.combat_units(UnitTypeId.SIEGETANKSIEGED):
-                order = unit(AbilityId.UNSIEGE_UNSIEGE)
-                actions.append(order)
-            self.move_check = 1
-        elif self.bot.combat_units.amount > 40 and self.move_check == 1:
-            #print("40넘음")
-            for unit in self.bot.combat_units(UnitTypeId.SIEGETANKSIEGED):
-                order = unit(AbilityId.UNSIEGE_UNSIEGE)
-                actions.append(order)
-            self.move_check = 2
-        elif self.bot.combat_units.amount > 60 and self.move_check == 2:
-            #print("60넘음")
-            for unit in self.bot.combat_units(UnitTypeId.SIEGETANKSIEGED):
-                order = unit(AbilityId.UNSIEGE_UNSIEGE)
-                actions.append(order)
-            self.move_check = 3
+         #방어시 집결 위치
+        #defense_position = self.bot.start_location + 0.25 * (enemy_cc.position - self.bot.start_location)
+        def_pos1 = self.bot.start_location + 0.20 * (enemy_cc.position - self.bot.start_location)
+        def_pos2 = self.bot.start_location + 0.45 * (enemy_cc.position - self.bot.start_location)
+        def_pos3 = self.bot.start_location + 0.7 * (enemy_cc.position - self.bot.start_location)
+        
+        _pos1 = self.bot.start_location + 0.30 * (enemy_cc.position - self.bot.start_location)
+        _pos2 = self.bot.start_location + 0.55 * (enemy_cc.position - self.bot.start_location)
+        _pos3 = self.bot.start_location + 0.8 * (enemy_cc.position - self.bot.start_location)
 
-        ## -----탱크 다 이동했는지 갱신-----
-        if self.move_tank == self.bot.tank_units:
-            self.move_check = 1
-
-        #
         # -----유닛 명령 생성-----
         ## 마이크로 컨트롤
         #
@@ -224,115 +205,85 @@ class CombatManager(object):
                 else:
                     target = enemy_unit
 
-                ##-----유닛 스킬-----
-
+#region marine
                 ##-----전투 유닛 전체-----
-                if unit.type_id is not UnitTypeId.MEDIVAC:
-                    ##-----해병과 불곰-----
-                    if unit.type_id is UnitTypeId.MARINE:
-                        if self.move_check == 0: #초기상태+대기중
-                            #print("해병: 초기상태+대기중")
-                            self.target_pos = def_pos1
-                            actions.append(unit.attack(self.target_pos))
-                            if self.distance(self.bot.combat_units.center, self.target_pos) < 2: #위치1도착
-                                print("해병: 위치1도착")
-                        elif self.move_check == 1: 
-                            self.target_pos = def_pos2
-                            actions.append(unit.attack(self.target_pos))
-                            if self.distance(self.bot.combat_units.center, self.target_pos) < 2: #위치2도착
-                                print("해병: 위치2도착")
-                        elif self.move_check == 2: #초기상태+대기중
-                            #print("해병: 초기상태+대기중")
-                            self.target_pos = def_pos3
-                            actions.append(unit.attack(self.target_pos))
-                            if self.distance(self.bot.combat_units.center, self.target_pos) < 2: #위치3도착
-                                print("해병: 위치3도착")
-                                actions.append(unit.attack(target))
+                if unit.type_id is UnitTypeId.MARINE:
+                    if self.move_check == 0: #초기상태+대기중
+                        #print("해병: 초기상태+대기중")
+                        self.target_pos = _pos1
+                        actions.append(unit.attack(self.target_pos))
+                    elif self.move_check == 1: 
+                        self.target_pos = _pos2
+                        actions.append(unit.attack(self.target_pos))
+                    elif self.move_check == 2: #초기상태+대기중
+                        #print("해병: 초기상태+대기중")
+                        self.target_pos = _pos3
+                        actions.append(unit.attack(self.target_pos))
+                    if self.distance(self.bot.combat_units.center, _pos3) < 2: #위치3도착
+                        actions.append(unit.attack(target))
 
-                        ##-----스킬-----
-                        if self.combat_pos == 1 and unit.distance_to(target) < 15:
+                    ##-----스킬-----
+                    if self.combat_pos == 1 and unit.distance_to(target) < 15:
                             # 유닛과 목표의 거리가 15이하일 경우 스팀팩 사용
-                            if not unit.has_buff(BuffId.STIMPACK) and unit.health_percentage > 0.5:
-                                # 현재 스팀팩 사용중이 아니며, 체력이 50% 이상
-                                if self.bot.time - self.evoked.get((unit.tag, AbilityId.EFFECT_STIM), 0) > 1.0:
-                                    # 1초 이전에 스팀팩을 사용한 적이 없음
-                                    actions.append(unit(AbilityId.EFFECT_STIM))
-                                    self.evoked[(unit.tag, AbilityId.EFFECT_STIM)] = self.bot.time
+                        if not unit.has_buff(BuffId.STIMPACK) and unit.health_percentage > 0.5:
+                            # 현재 스팀팩 사용중이 아니며, 체력이 50% 이상
+                            if self.bot.time - self.evoked.get((unit.tag, AbilityId.EFFECT_STIM), 0) > 1.0:
+                                # 1초 이전에 스팀팩을 사용한 적이 없음
+                                actions.append(unit(AbilityId.EFFECT_STIM))
+                                self.evoked[(unit.tag, AbilityId.EFFECT_STIM)] = self.bot.time
 
-                        ##-----타겟-----
-                        #타겟 우선순위 설정
-                        if self.bot.known_enemy_units.exists:
-                            flying_target = self.bot.known_enemy_units.filter(
-                                lambda unit:  unit.is_flying
-                            )
-                            if flying_target.exists:
-                                target = flying_target.closest_to(unit)
+                    ##-----타겟-----
+                    #타겟 우선순위 설정
+                    if self.bot.known_enemy_units.exists:
+                        flying_target = self.bot.known_enemy_units.filter(
+                            lambda unit:  unit.is_flying
+                        )
+                        if flying_target.exists:
+                            target = flying_target.closest_to(unit)
 
-
+#endregion
                     ##-----탱크-----
-                    if unit.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
-                        if self.move_check == 0: #초기상태+대기중
-                            self.moving(unit, def_pos1, actions)
-                        elif self.move_check == 1: 
-                            self.moving(unit, def_pos2, actions)
-                        elif self.move_check == 2: 
-                            self.moving(unit, def_pos3, actions)
+                if unit.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
 
-
-                        
-                                
-                        ##-----스킬-----
-                        '''if self.move_check == 1: #전부이동완료
-                            print("탱크", n, ": 이동완료")
-                            if unit.type_id == UnitTypeId.SIEGETANK: #탱크변신
-                                print("탱크", n, ": 탱크변신해")
-                                order = unit(AbilityId.SIEGEMODE_SIEGEMODE)
+                    if self.move_check == 0: #초기상태+대기중
+                        self.moving(unit, def_pos1, actions)
+                        '''t=0
+                        if len(self.position_list) == self.n : #리스트 갱신
+                            self.circle(pos)
+                        for tank in self.bot.tankArray: #이동
+                            if unit.tag == tank and t<=self.n:
+                                actions.append(unit.move(self.position_list[t]))  
+                            t+=1
+                        if self.distance(unit.position, self.position_list[self.n]) < 1: #지정위치도착
+                            if unit.type_id == UnitTypeId.SIEGETANK: 
+                                order = unit(AbilityId.SIEGEMODE_SIEGEMODE) #변신함
                                 actions.append(order)
-                            elif unit.type_id == UnitTypeId.SIEGETANKSIEGED: #이동완료+탱크변신완료->다음 행동 가능
-                                print("탱크", n, ": 탱크변신했어")
-                                #self.move_check = 0
-                        elif self.move_check == 0: #아직이동대기
-                            print("탱크", n, ": 이동대기중")
-                            if unit.type_id == UnitTypeId.SIEGETANKSIEGED: #탱크 풀고 이동
-                                print("탱크", n, ": 탱크 풀고 이동해")
-                                order = unit(AbilityId.UNSIEGE_UNSIEGE)
-                                actions.append(order)'''
-
+                        self.n = self.n + 1 '''
                         
-                    """
-                    if self.combat_pos == 0 and self.move_check == 0: #초기상태+대기중
-                        print(n, ": 초기상태+대기중")
-                        self.target_pos = def_pos1
-                        actions.append(unit.attack(self.target_pos))
-                        if self.distance(self.bot.combat_units.center, def_pos1) < 2: #위치1도착
-                            print(n, ": 위치1도착")
-                            self.position_list = self.circle(self.target_pos)
-                            actions.append(unit.attack(self.position_list[n]))
-                            '''if self.distance(self.bot.combat_units.center, self.position_list[n]) < 1: #각자의 위치 ㄱ
-                                print(n, ": 각자의 위치 ㄱ, ", self.position_list[n])
-                                self.combat_pos = 1
-                                self.move_check = 1 '''   """     
-                    """
-                    elif self.combat_pos == 1 and self.move_check == 0: #위치1+대기중
-                        print(n, ": 위치1+대기중")
-                        self.target_pos = def_pos2
-                        actions.append(unit.attack(self.target_pos))
-                        if self.distance(self.bot.combat_units.center, def_pos2) < 3: #위치2도착
-                            print(n, ": 위치2도착")
-                            self.combat_pos = 2
-                            self.move_check = 1
-                    elif self.combat_pos == 2 and self.move_check == 0: #위치2+대기중
-                        print(n, ": 위치2+대기중")
-                        self.target_pos = def_pos3
-                        actions.append(unit.attack(self.target_pos))
-                        if self.distance(self.bot.combat_units.center, def_pos3) < 3: #위치3 도착
-                            print(n, ": 위치3 도착")
-                            self.combat_pos = 3
-                            self.move_check = 1
-                    elif self.combat_pos == 3 and self.move_check == 0: #위치3+대기중
-                        print(n, ": 위치3+대기중")
-                        actions.append(unit.attack(target))"""
+                    elif self.move_check == 1: 
+                        self.moving(unit, def_pos2, actions)
+                    elif self.move_check == 2: 
+                        self.moving(unit, def_pos3, actions)
 
+
+        if self.bot.combat_units.amount > 40 and self.move_check == 0:
+            #print("20넘음")
+            for unit in self.bot.combat_units(UnitTypeId.SIEGETANKSIEGED):
+                order = unit(AbilityId.UNSIEGE_UNSIEGE)
+                actions.append(order)
+            self.position_list = list()
+            self.i = 0
+            self.j = 0
+            self.move_check = 1
+        elif self.bot.combat_units.amount > 80 and self.move_check == 1:
+            #print("40넘음")
+            for unit in self.bot.combat_units(UnitTypeId.SIEGETANKSIEGED):
+                order = unit(AbilityId.UNSIEGE_UNSIEGE)
+                actions.append(order)
+            self.position_list = list()
+            self.i = 0
+            self.j = 0
+            self.move_check = 2
                           
                         
         return actions
