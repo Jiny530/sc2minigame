@@ -99,26 +99,35 @@ class NukeManager(object):
 
         if ghosts.amount > 0:
 
+            print(self.bot.nuke_strategy)
             if self.dead == 1 and self.bot.nuke_strategy <= 1: # 위에서 죽었는데 또 위로가면
-                self.nuke_reward -= 0.01 #마이너스
+                self.bot.nuke_reward -= 0.01 #마이너스
             elif self.dead == 2 and self.bot.nuke_strategy >= 2:
-                self.nuke_reward -= 0.01 #마이너스
+                self.bot.nuke_reward -= 0.01 #마이너스
 
             self.dead = 3 
 
             ghost = ghosts.first #고스트는 딱 한 개체만
             threaten = self.bot.known_enemy_units.closer_than(5, ghost.position)
             nuke_units = self.bot.units.tags_in(self.bot.nukeArray)
+            ravens = threaten(UnitTypeId.RAVEN)
+
             # 기지와 떨어졌을때 적 발견시 은폐
             if ghost.distance_to(Point2((self.ghost_pos,30))) > 10 and threaten.amount > 0:
-                if not self.stop and self.bot.nuke_strategy % 2 == 0 and nuke_units.amount > 1:
+                if self.bot.nuke_strategy % 2 == 0 and nuke_units.amount > 1:
                     self.bot.nuke_reward += 0.1 # reward
                     if ravens.amount > 0:
                         for unit in nuke_units:
-                            actions.append(unit.attack(ravens.closest_to(unit)))
+                            if self.stop and unit.type_id == UnitTypeId.GHOST:
+                                pass
+                            else:
+                                actions.append(unit.attack(ravens.closest_to(unit)))
                     else :
                         for unit in nuke_units:
-                            actions.append(unit.attack(threaten.closest_to(unit)))
+                            if self.stop and unit.type_id == UnitTypeId.GHOST:
+                                pass
+                            else:
+                                actions.append(unit.attack(threaten.closest_to(unit)))
                 else : # 고스트 혼자이면 바로 은폐 쓰기
                     actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
 
@@ -143,11 +152,11 @@ class NukeManager(object):
                 # 위치 이동
                 for unit in nuke_units:
                     if unit.distance_to(Point2((self.ghost_pos,10))) > 3 and self.pos == 0:
-                        actions.append(unit.move(Point2((self.ghost_pos,55)))) 
+                        actions.append(unit.move(Point2((self.ghost_pos,10)))) 
                         self.pos=1 # 올라가기
 
                     if unit.distance_to(Point2((self.ghost_pos,10))) == 0 and self.pos == 1:
-                        actions.append(unit.move(Point2((self.enemy_pos,55))))
+                        actions.append(unit.move(Point2((self.enemy_pos,10))))
                         self.pos=2 # 옆으로 가기
 
                     if unit.distance_to(Point2((self.enemy_pos,10))) < 3:
@@ -216,7 +225,7 @@ class ReconManager(object):
         
         if ravens.amount == 0:
             if self.bot.can_afford(UnitTypeId.RAVEN):
-                # 밤까마귀가 하나도 없으면 고스트 훈련
+                # 밤까마귀가 하나도 없으면 훈련
                 actions.append(cc.train(UnitTypeId.RAVEN))
             if self.bot.die_alert == 2:
                 self.bot.die_alert = 1 # 리콘이 죽었다 => 다른곳에서 써먹을 플래그
@@ -280,9 +289,15 @@ class ReconManager(object):
                     pos = await self.bot.find_placement(UnitTypeId.AUTOTURRET, pos)
                     actions.append(raven(AbilityId.BUILDAUTOTURRET_AUTOTURRET, pos))
 
+                    #해병부대 - 열명 넘는지는 어사인에서 관리
+                    recon_units = self.bot.units.tags_in(self.bot.reconArray)
+                    for unit in recon_units:
+                        if unit.type_id == UnitTypeId.MARINE:
+                            actions.append(unit.attack(target))
+
             elif threaten.amount == 0 and self.bot.enemy_alert==1: #평범하게 적들 해치운 경우
                 self.bot.enemy_alert=0 # 에너미 해치움
-                raven.distance_to(self.patrol_pos[self.a])
+                raven.move(self.patrol_pos[self.a])
                 if self.bot.is_ghost == 1:
                     # print("유령해치움")
                     self.bot.is_ghost == 0
@@ -294,7 +309,7 @@ class ReconManager(object):
                 if unit.amount == 0:
                     self.bot.is_ghost = 0
                     self.bot.enemy_alert=0
-                    raven.distance_to(self.patrol_pos[self.a])
+                    raven.move(self.patrol_pos[self.a])
             
         return actions
 
@@ -872,7 +887,7 @@ class Bot(sc2.BotAI):
         self.reconArray = set()
         self.nukeArray = set()
         self.nuke_reward = 0 
-        self.nuke_strategy= 0
+        self.nuke_strategy= 3
         #self.trainOrder=list()
         #self.next_unit = UnitTypeId.MARINE
         
