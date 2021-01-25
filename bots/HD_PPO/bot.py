@@ -72,22 +72,25 @@ class NukeManager(object):
     def __init__(self, bot_ai):
         self.bot = bot_ai
         self.pos=0
-        self.dead=0
+        self.dead=-1
         self.ghost_pos=0
         self.enemy_pos=0
         self.ghost_tag=0
         self.nuke_time = 0
         self.stop = False
+        self.middle_alert = False
 
     def reset(self):
-        if self.bot.enemy_start_locations[0].x == 95.5:
-            self.ghost_pos = 32.5
-            self.enemy_pos= 95.5
-        else :
-            self.ghost_pos = 95.5
-            self.enemy_pos= 32.5
+        self.ghost_pos = self.bot.start_location.x
+        self.enemy_pos= self.bot.enemy_start_locations[0].x
+        self.course = [Point2((self.ghost_pos,55)),Point2((self.enemy_pos,55)),Point2((self.ghost_pos,10)),Point2((self.enemy_pos,10))]
+        if self.ghost_pos == 32.5:
+            self.middle = 72.5
+        else:
+            self.middle = 52.5
 
-    # @@고스트가 우선으로 생성되게 해야할까?
+    def runaway(self):
+        pass # 아직 어떻게할지 모름
 
     async def step(self):
         actions = list() # 이번 step에 실행할 액션 목록
@@ -104,61 +107,100 @@ class NukeManager(object):
 
         if ghosts.amount > 0:
 
-            if self.dead == 1 and self.bot.nuke_strategy <= 1: # 위에서 죽었는데 또 위로가면
-                self.nuke_reward -= 0.01 #마이너스
-            elif self.dead == 2 and self.bot.nuke_strategy >= 2:
-                self.nuke_reward -= 0.01 #마이너스
+            if self.dead == 0 and self.bot.nuke_strategy == 0: # 위에서 죽었는데 또 위로가면
+                self.bot.nuke_reward -= 0.01 #마이너스
+            elif self.dead == 1 and self.bot.nuke_strategy == 1:
+                self.bot.nuke_reward -= 0.01 #마이너스
+            elif self.dead == 2 and self.bot.nuke_strategy == 2:
+                self.bot.nuke_reward -= 0.01 #마이너스
 
             self.dead = 3 
 
             ghost = ghosts.first #고스트는 딱 한 개체만
-            threaten = self.bot.known_enemy_units.closer_than(5, ghost.position)
+            threaten = self.bot.known_enemy_units.closer_than(10, ghost.position)
             nuke_units = self.bot.units.tags_in(self.bot.nukeArray)
+            ravens = threaten(UnitTypeId.RAVEN)
+
             # 기지와 떨어졌을때 적 발견시 은폐
-            if ghost.distance_to(Point2((self.ghost_pos,30))) > 10 and threaten.amount > 0:
-                if not self.stop and self.bot.nuke_strategy % 2 == 0 and nuke_units.amount > 1:
-                    self.bot.nuke_reward += 0.1 # reward
-                    if ravens.amount > 0:
+            if ghost.distance_to(self.bot.start_location) > 10 and threaten.amount > 0 :
+                # 위 or 아래로 가고있는 와중, 고스트 혼자가 아닐땐 공격명령
+                if not self.stop and nuke_units.amount > 1:
+                    if ravens.amount > 0: # 밤까마귀이면 도망가는 코드 추가
                         for unit in nuke_units:
-                            actions.append(unit.attack(ravens.closest_to(unit)))
+                            if unit.type_id == UnitTypeId.GHOST:
+                                runaway()
+                            else:
+                                actions.append(unit.attack(ravens.closest_to(unit)))
                     else :
                         for unit in nuke_units:
-                            actions.append(unit.attack(threaten.closest_to(unit)))
+                            # @@ 수정필요 상대팀이 우리보다 많으면 고스트는 은폐, 핵공격
+                            if threaten.amount > nuke_units.amount:
+                                actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
+                                actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=self.bot.threaten.center))
+                            if self.stop and unit.type_id == UnitTypeId.GHOST:
+                                pass
+                            else:
+                                actions.append(unit.attack(threaten.closest_to(unit)))
                 else : # 고스트 혼자이면 바로 은폐 쓰기
                     actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
+                    if threaten.amount > 10 and self.bot.nuke_strategy == 2:
+                        self.bot.ghost_ready = True
+                        actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=threaten.center))
 
-            
-
-            if self.bot.nuke_strategy <= 1 and self.pos != 3: 
+                
+            # 위로
+            if self.bot.nuke_strategy == 0 and self.pos != 3: 
                 for unit in nuke_units:
                 # 위치 이동
-                    if unit.distance_to(Point2((self.ghost_pos,55))) > 3 and self.pos == 0:
-                        actions.append(unit.move(Point2((self.ghost_pos,55)))) 
+                    if unit.distance_to(self.course[0]) > 3 and self.pos == 0:
+                        actions.append(unit.move(self.course[0]))
                         self.pos=1 # 올라가기
 
-                    if unit.distance_to(Point2((self.ghost_pos,55))) == 0 and self.pos == 1:
-                        actions.append(unit.move(Point2((self.enemy_pos,55))))
+                    if unit.distance_to(self.course[0]) == 0 and self.pos == 1:
+                        actions.append(unit.move(self.course[1]))
                         self.pos=2 # 옆으로 가기
 
-                    if unit.distance_to(Point2((self.enemy_pos,55))) < 3:
+                    if unit.distance_to(self.course[1]) < 3:
                         self.pos=3 # 대기장소 도착
             
             # 아래로 가라
-            elif self.bot.nuke_strategy >= 2 and self.pos != 3: 
+            elif self.bot.nuke_strategy == 1 and self.pos != 3: 
                 # 위치 이동
                 for unit in nuke_units:
-                    if unit.distance_to(Point2((self.ghost_pos,10))) > 3 and self.pos == 0:
-                        actions.append(unit.move(Point2((self.ghost_pos,55)))) 
+                    if unit.distance_to(self.course[2]) > 3 and self.pos == 0:
+                        actions.append(unit.move(self.course[2]))
                         self.pos=1 # 올라가기
 
-                    if unit.distance_to(Point2((self.ghost_pos,10))) == 0 and self.pos == 1:
-                        actions.append(unit.move(Point2((self.enemy_pos,55))))
+                    if unit.distance_to(self.course[2]) == 0 and self.pos == 1:
+                        actions.append(unit.move(self.course[3]))
                         self.pos=2 # 옆으로 가기
 
-                    if unit.distance_to(Point2((self.enemy_pos,10))) < 3:
+                    if unit.distance_to(self.course[3]) < 3:
                         self.pos=3 # 대기장소 도착
 
-            if self.pos==3 or self.stop and ghost.idle:
+            # 가운데로 가라 - 유령 혼자만 갈 거임
+            elif self.bot.nuke_strategy == 2 and self.pos!=3:
+                # 에너지가 50 이상일때, 가운데로 출발
+                if ghost.energy > 70 and ghost.distance_to(Point2((self.middle,30))) > 3 and self.pos == 0:
+                    actions.append(ghost.move(Point2((self.middle,30)))) #중간지점으로 가기
+                    self.pos=1 
+
+                # 가던도중 적을 만났거나, 무사히 가운데로 왔다면 은폐
+                if ghost.distance_to(Point2((self.middle,30))) < 2 and self.pos == 1:
+                    self.pos = 2
+
+                if self.pos == 2 and ghost.is_idle:
+                    
+                    self.bot.ghost_ready = True
+                    ghost_abilities = await self.bot.get_available_abilities(ghost)
+                   
+                    if AbilityId.TACNUKESTRIKE_NUKECALLDOWN in ghost_abilities: 
+                        actions.append(ghost(AbilityId.BEHAVIOR_CLOAKON_GHOST))
+                        actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=self.bot.enemy_start_locations[0]))
+                    
+                        
+
+            if self.pos==3 or self.stop and ghost.is_idle:
                 self.bot.ghost_ready = True # @@고스트 준비됐음 플레그, 핵 우선으로 생산할까??
                 ghost_abilities = await self.bot.get_available_abilities(ghost)
                 
@@ -185,12 +227,13 @@ class NukeManager(object):
             if self.bot.time - self.nuke_time < 14.0: 
                 self.bot.nuke_reward -= 0.05
 
-            if self.bot.nuke_strategy <= 1: #윗길로 갔었으면
-                self.dead = 1 #위에서죽음 표시
-            else:
+            if self.bot.nuke_strategy == 0: #윗길로 갔었으면
+                self.dead = 0 #위에서죽음 표시
+            elif self.bot.nuke_strategy == 1:
+                self.dead = 1 #아랫길이었다면 아래서 죽음 표시
+            elif self.bot.nuke_strategy == 2:
                 self.dead = 2 #아랫길이었다면 아래서 죽음 표시
         
-
         return actions
 
 
@@ -203,14 +246,43 @@ class ReconManager(object):
         self.a=0
         self.patrol_pos=list()
         self.front = None
+        self.patrol_pos = None
         #self.p=queue.Queue()
 
+    def patrol(self, center, combat_center):
+        # 사령부만 정찰 혹은 combat 만을 정찰
+        if combat_center == None:
+            self.patrol_pos = [Point2((center.x, center.y+10)), Point2((center.x+10, center.y)), Point2((center.x, center.y-10)), Point2((center.x-10, center.y))]
+        # 사령부와 deffense combat 을 정찰
+        elif combat_center > center.x:
+            self.patrol_pos = [Point2((center.x, center.y+10)), Point2((combat_center, center.y)), Point2((center.x, center.y-10)), Point2((center.x-10, center.y))]
+        else:
+            self.patrol_pos = [Point2((center.x, center.y+10)), Point2((combat_center, center.y)), Point2((center.x, center.y-10)), Point2((center.x+10, center.y))]
+        
+    def recon(self,raven,actions):
+        if self.bot.is_ghost == 0:
+            if self.a==0 :
+                actions.append(raven.move(self.patrol_pos[0]))
+                if raven.distance_to(self.patrol_pos[0]) < 1:
+                    actions.append(raven.move(self.patrol_pos[1]))
+                    self.a=1
+            elif self.a==1:
+                if raven.distance_to(self.patrol_pos[1]) < 1:
+                    actions.append(raven.move(self.patrol_pos[2]))
+                    self.a=2
+            elif self.a==2:    
+                if raven.distance_to(self.patrol_pos[2]) < 1:
+                    actions.append(raven.move(self.patrol_pos[3]))
+                    self.a=3
+            elif self.a==3:
+                if raven.distance_to(self.patrol_pos[3]) < 1:
+                    actions.append(raven.move(self.patrol_pos[0]))
+                    self.a=0
+
     def reset(self):
-        if self.bot.enemy_start_locations[0].x == 95.5:
-            self.patrol_pos = [Point2((25.5, 37)), Point2((39.5, 37)), Point2((39.5, 23)), Point2((25.5, 23))]
-        else :
-            self.patrol_pos = [Point2((102.5, 37)), Point2((88.5, 37)), Point2((88.5, 23)), Point2((102.5, 23))]
+
         self.front = Point2((self.bot.start_location.x + 10, 30))
+        
 
     async def step(self):
         actions = list() # 이번 step에 실행할 액션 목록
@@ -221,41 +293,56 @@ class ReconManager(object):
         
         if ravens.amount == 0:
             if self.bot.can_afford(UnitTypeId.RAVEN):
-                # 밤까마귀가 하나도 없으면 고스트 훈련
+                # 밤까마귀가 하나도 없으면 훈련
                 actions.append(cc.train(UnitTypeId.RAVEN))
             if self.bot.die_alert == 2:
                 self.bot.die_alert = 1 # 리콘이 죽었다 => 다른곳에서 써먹을 플래그
 
-
         elif ravens.amount > 0:
             raven = ravens.first
-            
+            # 어디소속이닞 확인
+            # 센터 결정해서 patrol_pos 업데이트
             if self.bot.die_alert == 0 or self.bot.die_alert == 1:
                 self.bot.die_alert = 2 # 리콘 현재 존재함
             
-            if self.bot.is_ghost == 0:
-                if self.a==0 :
-                    actions.append(raven.move(self.patrol_pos[0]))
-                    if raven.distance_to(self.patrol_pos[0]) < 1:
-                        actions.append(raven.move(self.patrol_pos[1]))
-                        self.a=1
-                elif self.a==1:
-                    if raven.distance_to(self.patrol_pos[1]) < 1:
-                        actions.append(raven.move(self.patrol_pos[2]))
-                        self.a=2
-                elif self.a==2:    
-                    if raven.distance_to(self.patrol_pos[2]) < 1:
-                        actions.append(raven.move(self.patrol_pos[3]))
-                        self.a=3
-                elif self.a==3:
-                    if raven.distance_to(self.patrol_pos[3]) < 1:
-                        actions.append(raven.move(self.patrol_pos[0]))
-                        self.a=0
+            for unit in ravens:
+                
+                if self.bot.combatArray is not None :
+                    self.combat_center = self.bot.units.tags_in(self.bot.combatArray).center
+                '''
+                # @@왜 안들어가지??????????
+                for tag in self.bot.reconArray:
+                    if unit.tag == tag:
+                        print("들어옴~~~~~~")
+                        if self.bot.combat_strategy == 0: # @@임의로 설정함, defense 라는 뜻
+                            self.patrol(self.bot.start_location,self.combat_center.x)
+                            print("들어옴~!!!!!!!!!!!!!")
+                        elif self.bot.combat_strategy == 1: # wait or offense
+                            self.patrol(self.bot.start_location,None)
+                
+                if unit.tag in self.bot.reconArray:
+                    print("들어옴~~~~~~")
+                    if self.bot.combat_strategy == 0: # @@임의로 설정함, defense 라는 뜻
+                        self.patrol(self.bot.start_location,self.combat_center.x)
+                        print("들어옴~!!!!!!!!!!!!!")
+                    elif self.bot.combat_strategy == 1: # wait or offense
+                        self.patrol(self.bot.start_location,None)
+                # 컴뱃의 밤까마귀
+                elif unit.tag in self.bot.combatArray:
+                    self.patrol(self.combat_center,None)
+                '''
+                if self.bot.combat_strategy == 0: # @@임의로 설정함, defense 라는 뜻
+                    self.patrol(self.bot.start_location,self.combat_center.x)
+                elif self.bot.combat_strategy == 1: # wait or offense
+                    self.patrol(self.bot.start_location,None)
+                # @@ 이거 액션에 들어가는지 아니면 return해서 이어붙여줘야 하는지 확인하기
+                self.recon(unit,actions)
 
             threaten = self.bot.known_enemy_units.closer_than(10, raven.position) 
-
+            enemy_ghost = threaten(UnitTypeId.GHOST)
+            
             #assign 관련 플래그 설정
-            if raven.distance_to(self.front) > 2: #정면방향이 아님
+            if raven.distance_to(self.front) > 5: #정면방향이 아님
                 if threaten.exists:
                     if threaten.amount > 5:
                         self.bot.have_to_go = 2 #적이 많으면 컴뱃 전체가 움직임
@@ -265,16 +352,15 @@ class ReconManager(object):
                         self.bot.have_to_go = 0
                 else: self.bot.have_to_go = 0 #적이 없으면 안움직이기(돌아가게)        
 
-            if threaten.amount > 0:
+            if threaten.exists :
                 target = threaten.closest_to(raven.position)
                 self.bot.last_pos = target.position
                 #print(self.bot.last_pos)
-                unit = threaten(UnitTypeId.GHOST)
                 
-                if unit.amount > 0:
+                if enemy_ghost.amount > 0:
                     #print(unit.amount)
                     self.bot.is_ghost = 1 # 핵 쏘러 옴
-                    target = unit.first
+                    target = enemy_ghost.first
                     self.bot.last_pos = target.position
                     #print(self.bot.last_pos)
 
@@ -285,9 +371,15 @@ class ReconManager(object):
                     pos = await self.bot.find_placement(UnitTypeId.AUTOTURRET, pos)
                     actions.append(raven(AbilityId.BUILDAUTOTURRET_AUTOTURRET, pos))
 
+                    #해병부대 - 열명 넘는지는 어사인에서 관리
+                    recon_units = self.bot.units.tags_in(self.bot.reconArray)
+                    for unit in recon_units:
+                        if unit.type_id == UnitTypeId.MARINE:
+                            actions.append(unit.attack(target))
+
             elif threaten.amount == 0 and self.bot.enemy_alert==1: #평범하게 적들 해치운 경우
                 self.bot.enemy_alert=0 # 에너미 해치움
-                raven.distance_to(self.patrol_pos[self.a])
+                actions.append(raven.move(self.patrol_pos[self.a]))
                 if self.bot.is_ghost == 1:
                     # print("유령해치움")
                     self.bot.is_ghost == 0
@@ -295,11 +387,10 @@ class ReconManager(object):
                     # print("에너미해치움")
                         
             elif self.bot.is_ghost: # 정면방향 고스트였을경우
-                unit = threaten(UnitTypeId.GHOST)
-                if unit.amount == 0:
+                if enemy_ghost.amount == 0:
                     self.bot.is_ghost = 0
                     self.bot.enemy_alert=0
-                    raven.distance_to(self.patrol_pos[self.a])
+                    actions.append(raven.move(self.patrol_pos[self.a]))
             
         return actions
 
@@ -797,7 +888,7 @@ class AssignManager(object): #뜯어고쳐야함
         for tag in units_tag:
             unit = self.bot.units.find_by_tag(tag)
             if unit.type_id is UnitTypeId.RAVEN: #레이븐은 pass
-                pass
+                self.bot.reconArray.add(unit.tag)
             elif unit.type_id is UnitTypeId.NUKE: #핵은 pass
                 pass
             elif unit.type_id is UnitTypeId.GHOST: #고스트는 nuke
@@ -849,8 +940,8 @@ class AssignManager(object): #뜯어고쳐야함
                 self.bot.combatArray.clear() #그리고 combat 전체삭제
 
             #-----nuke-----
-            #고스트가 새로 생성되어야하고 + 전략이 여러명이면 배정(해병)
-            if  self.bot.units(UnitTypeId.GHOST).amount == 0 and self.bot.nuke_strategy%2==1:
+            #고스트가 새로 생성되어야하고 + 일단 윗길 아랫길만 해둠
+            if  self.bot.units(UnitTypeId.GHOST).amount == 0 and self.bot.nuke_strategy<=1:
                 if self.bot.die_count <= 3: #combat이 defense인 상태
                     if len(self.bot.combatArray) >= 10: #그때 컴뱃에 10명은 넘어야(중간에 지켜야해서)
                         while self.bot.nuke_units(UnitTypeId.MARINE).amount == 5:
@@ -973,7 +1064,7 @@ class Bot(sc2.BotAI):
 
         self.nuke_reward = 0 
         self.nuke_strategy= 0
-
+        self.combat_strategy = 0
         #self.trainOrder=list()
         #self.next_unit = UnitTypeId.MARINE
         
@@ -1041,7 +1132,6 @@ class Bot(sc2.BotAI):
             return list()
 
         actions = list() # 이번 step에 실행할 액션 목록
-
         #부대별 units타입
         self.nuke_units = self.units.tags_in(self.nukeArray)
         self.combat_units = self.units.filter(
@@ -1052,7 +1142,7 @@ class Bot(sc2.BotAI):
             lambda unit:  unit.type_id in [UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED]
         )
         #self.combat_units = self.units.tags_in(self.bot.combatArray)
-
+        '''
         if self.time - self.last_step_time >= self.step_interval:
             #택틱 변경
             before = self.nuke_strategy
@@ -1069,8 +1159,11 @@ class Bot(sc2.BotAI):
             ## print("-------생산택틱: ", self.product_strategy)
             #nuke reward 초기화
             self.nuke_reward = 0
-            
+        ''' # 고스트만 강화학습하는 가정 하에 해봄
 
+        if self.time - self.last_step_time >= self.step_interval and self.units(UnitTypeId.GHOST).amount == 0:
+            self.product_strategy, self.nuke_strategy = self.set_strategy()
+        
             self.assign_manager.reassign() #이상하게 배치된 경우 있으면 제배치
 
             """
@@ -1129,6 +1222,10 @@ class Bot(sc2.BotAI):
 
         cc_abilities = await self.get_available_abilities(self.cc)
         #핵 우선생산
+        
+        # 이미 핵이 있으면 생산X
+        if self.units(UnitTypeId.NUKE).amount > 0:
+            self.ghost_ready = False
         if self.ghost_ready:
             if AbilityId.BUILD_NUKE in cc_abilities:
                 # 전술핵 생산 가능(자원이 충분)하면 전술핵 생산
@@ -1137,8 +1234,11 @@ class Bot(sc2.BotAI):
         elif self.can_afford(next_unit):
             if self.time - self.evoked.get((self.cc.tag, 'train'), 0) > 1.0:
                 # 해당 유닛 생산 가능하고, 마지막 명령을 발행한지 1초 이상 지났음
-                actions.append(self.cc.train(next_unit))
-                self.evoked[(self.cc.tag, 'train')] = self.time
+                if self.units.tags_in(self.combatArray).amount > 15 and self.units(UnitTypeId.RAVEN).amount == 0 :
+                    pass
+                else: 
+                    actions.append(self.cc.train(next_unit))
+                    self.evoked[(self.cc.tag, 'train')] = self.time
         return actions
 
 
