@@ -23,6 +23,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from IPython import embed
 from sc2.data import Result
+from sc2.data import Alert
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -89,8 +90,8 @@ class NukeManager(object):
         else:
             self.middle = 52.5
 
-    def runaway(self):
-        pass # 아직 어떻게할지 모름
+    def runaway(self,threaten):
+        pass 
 
     async def step(self):
         actions = list() # 이번 step에 실행할 액션 목록
@@ -103,7 +104,8 @@ class NukeManager(object):
         
         # 생산
         if ghosts.amount == 0:
-            actions.append(cc.train(UnitTypeId.GHOST))
+            #actions.append(cc.train(UnitTypeId.GHOST))
+            pass
 
         if ghosts.amount > 0:
 
@@ -125,10 +127,10 @@ class NukeManager(object):
             if ghost.distance_to(self.bot.start_location) > 10 and threaten.amount > 0 :
                 # 위 or 아래로 가고있는 와중, 고스트 혼자가 아닐땐 공격명령
                 if not self.stop and nuke_units.amount > 1:
-                    if ravens.amount > 0: # 밤까마귀이면 도망가는 코드 추가
+                    if ravens.amount > 0 : # 밤까마귀이면 도망가는 코드 추가
                         for unit in nuke_units:
                             if unit.type_id == UnitTypeId.GHOST:
-                                runaway()
+                                self.runaway()
                             else:
                                 actions.append(unit.attack(ravens.closest_to(unit)))
                     else :
@@ -247,18 +249,23 @@ class ReconManager(object):
         self.patrol_pos=list()
         self.front = None
         self.patrol_pos = None
+
         #self.p=queue.Queue()
 
     def patrol(self, center, combat_center):
         # 사령부만 정찰 혹은 combat 만을 정찰
         if combat_center == None:
-            self.patrol_pos = [Point2((center.x, center.y+10)), Point2((center.x+10, center.y)), Point2((center.x, center.y-10)), Point2((center.x-10, center.y))]
+            if center.x != self.bot.start_location.x : # 컴뱃정찰이면 좁게 정찰
+                self.patrol_pos = [Point2((center.x, center.y+5)), Point2((center.x+5, center.y)), Point2((center.x, center.y-5)), Point2((center.x-5, center.y))]
+            else:
+                self.patrol_pos = [Point2((center.x, center.y+10)), Point2((center.x+10, center.y)), Point2((center.x, center.y-10)), Point2((center.x-10, center.y))]
         # 사령부와 deffense combat 을 정찰
         elif combat_center > center.x:
             self.patrol_pos = [Point2((center.x, center.y+10)), Point2((combat_center, center.y)), Point2((center.x, center.y-10)), Point2((center.x-10, center.y))]
         else:
             self.patrol_pos = [Point2((center.x, center.y+10)), Point2((combat_center, center.y)), Point2((center.x, center.y-10)), Point2((center.x+10, center.y))]
         
+
     def recon(self,raven,actions):
         if self.bot.is_ghost == 0:
             if self.a==0 :
@@ -291,7 +298,7 @@ class ReconManager(object):
         cc_abilities = await self.bot.get_available_abilities(cc)
         ravens = self.bot.units(UnitTypeId.RAVEN)
         
-        if ravens.amount == 0:
+        if ravens.amount == 0 and self.bot.units.tags_in(self.bot.combatArray).amount > 1:
             if self.bot.can_afford(UnitTypeId.RAVEN):
                 # 밤까마귀가 하나도 없으면 훈련
                 actions.append(cc.train(UnitTypeId.RAVEN))
@@ -309,37 +316,28 @@ class ReconManager(object):
                 
                 if self.bot.combatArray is not None :
                     self.combat_center = self.bot.units.tags_in(self.bot.combatArray).center
-                '''
-                # @@왜 안들어가지??????????
-                for tag in self.bot.reconArray:
-                    if unit.tag == tag:
-                        print("들어옴~~~~~~")
-                        if self.bot.combat_strategy == 0: # @@임의로 설정함, defense 라는 뜻
-                            self.patrol(self.bot.start_location,self.combat_center.x)
-                            print("들어옴~!!!!!!!!!!!!!")
-                        elif self.bot.combat_strategy == 1: # wait or offense
-                            self.patrol(self.bot.start_location,None)
                 
-                if unit.tag in self.bot.reconArray:
-                    print("들어옴~~~~~~")
-                    if self.bot.combat_strategy == 0: # @@임의로 설정함, defense 라는 뜻
-                        self.patrol(self.bot.start_location,self.combat_center.x)
-                        print("들어옴~!!!!!!!!!!!!!")
-                    elif self.bot.combat_strategy == 1: # wait or offense
-                        self.patrol(self.bot.start_location,None)
-                # 컴뱃의 밤까마귀
-                elif unit.tag in self.bot.combatArray:
-                    self.patrol(self.combat_center,None)
                 '''
-                if self.bot.combat_strategy == 0: # @@임의로 설정함, defense 라는 뜻
+                # 핵 감지하면 사령부 주위로 돌아가기
+                if self.bot.nuke_alert and self.bot.time - self.bot.nuke_time > 14 or self.is_ghost == 2:
+                    print("들어오니???????")
+                    self.bot.nuke_alert = False
+
+                if self.bot.nuke_alert: 
+                    print("들어오니????")
                     self.patrol(self.bot.start_location,self.combat_center.x)
-                elif self.bot.combat_strategy == 1: # wait or offense
-                    self.patrol(self.bot.start_location,None)
-                # @@ 이거 액션에 들어가는지 아니면 return해서 이어붙여줘야 하는지 확인하기
+                    actions.append(raven.move(self.patrol_pos[self.a]))
+                # 나중에 combat 으로 바꾸기
+                else:  '''
+                self.patrol(self.combat_center,None)
+                     
+                #actions.append(raven.move(self.patrol_pos[self.a]))
+                
                 self.recon(unit,actions)
 
             threaten = self.bot.known_enemy_units.closer_than(10, raven.position) 
             enemy_ghost = threaten(UnitTypeId.GHOST)
+            enemy_banshee = threaten(UnitTypeId.BANSHEE)
             
             #assign 관련 플래그 설정
             if raven.distance_to(self.front) > 5: #정면방향이 아님
@@ -353,18 +351,21 @@ class ReconManager(object):
                 else: self.bot.have_to_go = 0 #적이 없으면 안움직이기(돌아가게)        
 
             if threaten.exists :
-                target = threaten.closest_to(raven.position)
+                target = threaten.closest_to(raven.position)+
                 self.bot.last_pos = target.position
                 #print(self.bot.last_pos)
                 
-                if enemy_ghost.amount > 0:
+                if enemy_ghost.amount > 0 :
+                    if self.bot.nuke_alert:
+                        self.bot.is_ghost = 2
                     #print(unit.amount)
-                    self.bot.is_ghost = 1 # 핵 쏘러 옴
+                    else:
+                        self.bot.is_ghost = 1 # 핵 쏘러 옴
                     target = enemy_ghost.first
                     self.bot.last_pos = target.position
                     #print(self.bot.last_pos)
 
-                if raven.distance_to(self.front) > 5 or self.bot.is_ghost: #정면방향이 아니거나, 고스트가 있을경우만 공격
+                if raven.distance_to(self.front) > 5 or self.bot.is_ghost > 0 or enemy_banshee.amount > 0: #정면방향이 아니거나, 고스트 혹은 밴시가 있을경우만 공격
                     self.bot.enemy_alert=1 # 에너미 존재
                     self.bot.last_pos = target.position
                     pos = raven.position.towards(target.position, 5)
@@ -387,7 +388,7 @@ class ReconManager(object):
                     # print("에너미해치움")
                         
             elif self.bot.is_ghost: # 정면방향 고스트였을경우
-                if enemy_ghost.amount == 0:
+                if enemy_ghost.amount == 0 and enemy_banshee == 0:
                     self.bot.is_ghost = 0
                     self.bot.enemy_alert=0
                     actions.append(raven.move(self.patrol_pos[self.a]))
@@ -890,6 +891,7 @@ class AssignManager(object): #뜯어고쳐야함
             unit = self.bot.units.find_by_tag(tag)
             if unit.type_id is UnitTypeId.RAVEN: #레이븐은 pass
                 self.bot.reconArray.add(unit.tag)
+                print("!!!!!!!!!!!!!!!!!!!!")
             elif unit.type_id is UnitTypeId.NUKE: #핵은 pass
                 pass
             elif unit.type_id is UnitTypeId.GHOST: #고스트는 nuke
@@ -937,7 +939,7 @@ class AssignManager(object): #뜯어고쳐야함
             elif self.bot.have_to_go == 2: #전체가 와라
                 for tag in self.bot.combatArray:
                     self.bot.reconArray.add(tag) #combat의 전부를 recon으로
-                    #print("이동완료2", len(self.bot.reconArray), "/", len(self.bot.combatArray))
+                    #print("이동완료2", len(self.bot.reconArray), "/", len(self.bot.combatArray)) 
                 self.bot.combatArray.clear() #그리고 combat 전체삭제
 
             #-----nuke-----
@@ -1101,6 +1103,8 @@ class Bot(sc2.BotAI):
         self.fighting = 0 #현재 컴뱃에서 싸우고 있는가? 0:No, 1:Yes
         self.have_to_go = 0 #레콘으로 옮겨야하는가? 0:No, 1:일부만, 2:전체
 
+        self.nuke_alert = False
+        self.nuke_time = 0
         
     def on_start(self):
         """
@@ -1136,6 +1140,11 @@ class Bot(sc2.BotAI):
         매 스텝마다 호출되는 함수
         주요 AI 로직은 여기에 구현
         """
+
+        if self.alert(Alert.NuclearLaunchDetected):
+            print("핵이 준비되었습니다@@@@@@@@@")
+            self.nuke_alert = True
+            self.nuke_time = self.time
 
         if self.step_manager.invalid_step():
             return list()
@@ -1234,7 +1243,7 @@ class Bot(sc2.BotAI):
         #핵 우선생산
         
         # 이미 핵이 있으면 생산X
-        if self.units(UnitTypeId.NUKE).amount > 0:
+        if self.units(UnitTypeId.NUKE).amount > 0 and self.ghost_ready:
             self.ghost_ready = False
         if self.ghost_ready:
             if AbilityId.BUILD_NUKE in cc_abilities:
