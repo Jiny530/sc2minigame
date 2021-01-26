@@ -418,9 +418,12 @@ class CombatManager(object):
         self.target_pos = self.bot.cc #이동 위치의 기준
         self.position_list = list() #탱크 유닛들의 포지션 리스트
 
-        self.i = 0 #x쪽 가중치
-        self.j = 0 #y쪽 가중치
+        self.i = 0 #x쪽 가중치 안씀
+        self.j = 0 #y쪽 가중치 안씀
         self.n = 0
+
+        if self.bot.start_location.x == 32.5: self.player = 1
+        else: self.player = 2
 
 
     def distance(self, pos1, pos2):
@@ -434,30 +437,66 @@ class CombatManager(object):
     def circle(self, target_pos):
         """
         target_pos를 중점으로해서 지그재그 배치
+        circle2로 변경해서 안씀
         """
         
         self.position_list.append(Point2((target_pos.x + self.i, target_pos.y + self.j)))
         if(self.n%2 == 1):
-            self.i = self.i + 1 #x좌표는 홀수번째마다 증가
+            if self.player == 1:
+                self.i = self.i + 1 #x좌표는 홀수번째마다 증가
+            else:
+                self.i = self.i - 1 #x좌표는 홀수번째마다 감소
             self.j = self.j + self.n #y좌표는 홀수에 증가, 짝수에 감소
         else:
             self.j = self.j - self.n
 
+
+    def circle2(self, target_pos):
+        """
+        target_pos를 중점으로해서 지그재그 배치
+        """
+        x=list()
+        y=list()
+        position=list()
+        r=7
+
+        for theta in range(0, 360):
+            if theta % 15 == 0:
+                x.append(target_pos.x+r*math.cos(math.radians(theta)))
+                y.append(target_pos.y+r*math.sin(math.radians(theta)))
+
+        for i in range(0, len(x)):
+            position.append((x[i], y[i])) #x와 y를 짝맞춰 넣어
+
+        if self.player == 1:
+            position = sorted(position, key=lambda x: x[0]) #sort by x(position이 (x,y)로 구성됨, 그 중 x로 정렬)
+        else:
+            position = sorted(position, key=lambda x: x[0], reverse=True) #sort by x reversed
+
+        #print("position: ",position)
+
+        for i in range(0, len(position)):
+            self.position_list.append(Point2((position[i][0], position[i][1])))
+    
             
     def moving(self, unit, pos, actions):
+        """
+        전차의 이동 및 변신 담당
+        """
         t=0
-        if len(self.position_list) == self.n : #리스트 갱신
+        self.circle2(pos)
+        #if len(self.position_list) == self.n : #리스트 갱신
             #print(len(self.position_list),"@@@@@@@@@",self.n)
-            self.circle(pos)
-        for tank in self.bot.tankArray: #이동
-            if unit.tag == tank and t<=self.n:
-                actions.append(unit.move(self.position_list[t]))  
-                #print("!!!!!!!!!!!!!!!!!")
+            #self.circle2(pos)
+        for tank in self.bot.tankArray: #이동 
+                #if unit.tag == tank and t<=self.n:
+            if unit.tag == tank:
+                actions.append(unit.move(self.position_list[t])) 
+                break
+                    #print("!!!!!!!!!!!!!!!!!")
             t+=1
         if self.distance(unit.position, self.position_list[self.n]) < 1: #지정위치도착
             if unit.type_id == UnitTypeId.SIEGETANK: 
-                #if self.move_check==0:
-                 #   print(self.move_check,"!!!!!!!!!!",self.n,"@@@@@@",t)
                 order = unit(AbilityId.SIEGEMODE_SIEGEMODE) #변신함
                 actions.append(order)
         self.n = self.n + 1 
@@ -475,12 +514,6 @@ class CombatManager(object):
             lambda u: u.is_mechanical and u.health_percentage < 0.5
         )  # 체력이 100% 이하인 유닛 검색
 
-        
-
-       
-
-        #wait_position = self.bot.start_location + 0.5 * (enemy_cc.position - self.bot.start_location)
-        
         #얼마나 많은 유닛이 공격중인가?
         attacking_units = self.bot.combat_units.filter(
             lambda u: u.is_attacking 
@@ -527,26 +560,19 @@ class CombatManager(object):
                     actions.append(mule_unit.move(self.bot.combat_units.center))
                 else: actions.append(mule_unit.move(mule_pos))
 
-
-        #if(self.bot.combat_units.exists):
-            #print("컴뱃센터: ", self.bot.combat_units.center.x)
-            #print("combat_pos: ", self.combat_pos)
-            #print("pos1: ", def_pos1)
-            #print("pos2: ", def_pos2)
-            #print("pos3: ", def_pos3)
-            #print("move_check: ", self.move_check)
-            #print("strategy: ", self.bot.combat_strategy)
     #endregion
         
          #방어시 집결 위치
         #defense_position = self.bot.start_location + 0.25 * (enemy_cc.position - self.bot.start_location)
-        def_pos1 = self.bot.start_location + 0.20 * (enemy_cc.position - self.bot.start_location)
-        def_pos2 = self.bot.start_location + 0.45 * (enemy_cc.position - self.bot.start_location)
-        def_pos3 = self.bot.start_location + 0.7 * (enemy_cc.position - self.bot.start_location)
+        def_pos1 = self.bot.start_location + 0.30 * (enemy_cc.position - self.bot.start_location)
+        def_pos2 = self.bot.start_location + 0.55 * (enemy_cc.position - self.bot.start_location)
+        def_pos3 = self.bot.start_location + 0.75 * (enemy_cc.position - self.bot.start_location)
+        def_pos4 = self.bot.start_location + 0.9 * (enemy_cc.position - self.bot.start_location)
         
-        _pos1 = self.bot.start_location + 0.30 * (enemy_cc.position - self.bot.start_location)
-        _pos2 = self.bot.start_location + 0.55 * (enemy_cc.position - self.bot.start_location)
-        _pos3 = self.bot.start_location + 0.8 * (enemy_cc.position - self.bot.start_location)
+        _pos1 = self.bot.start_location + 0.25 * (enemy_cc.position - self.bot.start_location)
+        _pos2 = self.bot.start_location + 0.5 * (enemy_cc.position - self.bot.start_location)
+        _pos3 = self.bot.start_location + 0.7 * (enemy_cc.position - self.bot.start_location)
+        _pos4 = self.bot.start_location + 0.85 * (enemy_cc.position - self.bot.start_location)
 
         # -----유닛 명령 생성-----
         ## 마이크로 컨트롤
@@ -575,11 +601,13 @@ class CombatManager(object):
                     elif self.move_check == 1: 
                         self.target_pos = _pos2
                         actions.append(unit.attack(self.target_pos))
-                    elif self.move_check == 2: #초기상태+대기중
-                        #print("해병: 초기상태+대기중")
+                    elif self.move_check == 2: 
                         self.target_pos = _pos3
                         actions.append(unit.attack(self.target_pos))
-                    if self.distance(self.bot.combat_units.center, _pos3) < 2: #위치3도착
+                    elif self.move_check == 3:
+                        self.target_pos = _pos4
+                        actions.append(unit.attack(self.target_pos))
+                    if self.distance(self.bot.combat_units.center, _pos4) < 2: #위치3도착
                         actions.append(unit.attack(target))
 
                     ##-----스킬-----
@@ -607,43 +635,55 @@ class CombatManager(object):
 
                     if self.move_check == 0: #초기상태+대기중
                         self.moving(unit, def_pos1, actions)
-                        '''t=0
-                        if len(self.position_list) == self.n : #리스트 갱신
-                            self.circle(pos)
-                        for tank in self.bot.tankArray: #이동
-                            if unit.tag == tank and t<=self.n:
-                                actions.append(unit.move(self.position_list[t]))  
-                            t+=1
-                        if self.distance(unit.position, self.position_list[self.n]) < 1: #지정위치도착
-                            if unit.type_id == UnitTypeId.SIEGETANK: 
-                                order = unit(AbilityId.SIEGEMODE_SIEGEMODE) #변신함
-                                actions.append(order)
-                        self.n = self.n + 1 '''
-                        
                     elif self.move_check == 1: 
                         self.moving(unit, def_pos2, actions)
                     elif self.move_check == 2: 
                         self.moving(unit, def_pos3, actions)
+                    elif self.move_check == 3: 
+                        self.moving(unit, def_pos4, actions)
 
 
+        ##-----move_check 변화-----
         if self.bot.combat_units.amount > 40 and self.move_check == 0:
             #print("20넘음")
             for unit in self.bot.combat_units(UnitTypeId.SIEGETANKSIEGED):
                 order = unit(AbilityId.UNSIEGE_UNSIEGE)
                 actions.append(order)
             self.position_list = list()
-            self.i = 0
-            self.j = 0
+            #self.i = 0
+            #self.j = 0
             self.move_check = 1
+            print("무브체크", self.move_check)
         elif self.bot.combat_units.amount > 80 and self.move_check == 1:
             #print("40넘음")
             for unit in self.bot.combat_units(UnitTypeId.SIEGETANKSIEGED):
                 order = unit(AbilityId.UNSIEGE_UNSIEGE)
                 actions.append(order)
             self.position_list = list()
-            self.i = 0
-            self.j = 0
+            #self.i = 0
+            #self.j = 0
             self.move_check = 2
+            print("무브체크", self.move_check)
+        elif self.bot.combat_units.amount > 100 and self.move_check == 2:
+            #print("40넘음")
+            for unit in self.bot.combat_units(UnitTypeId.SIEGETANKSIEGED):
+                order = unit(AbilityId.UNSIEGE_UNSIEGE)
+                actions.append(order)
+            self.position_list = list()
+            #self.i = 0
+            #self.j = 0
+            self.move_check = 3
+            print("무브체크", self.move_check)
+        elif self.bot.combat_units.amount <= 30 and self.move_check >= 1:
+            #한타 졌거나 해서 인원 줄었음
+            for unit in self.bot.combat_units(UnitTypeId.SIEGETANKSIEGED):
+                order = unit(AbilityId.UNSIEGE_UNSIEGE)
+                actions.append(order)
+            self.position_list = list()
+            #self.i = 0
+            #self.j = 0
+            self.move_check -= 1
+            print("졌음-무브체크", self.move_check)
                           
                         
         return actions
@@ -826,16 +866,24 @@ class AssignManager(object): #뜯어고쳐야함
         """
         #print("싸우고 있나?: ", self.bot.fighting)
         units_tag = self.bot.units.tags #전체유닛
+        
         #and연산으로 살아있는 유닛으로만 구성
         self.bot.combatArray = self.bot.combatArray & units_tag 
         self.bot.reconArray = self.bot.reconArray & units_tag
         self.bot.nukeArray = self.bot.nukeArray & units_tag
+        #탱크는 리스트라 다르게
+        self.bot.tankArray.clear()
+        for tag in units_tag:
+            unit = self.bot.units.find_by_tag(tag)
+            if unit.type_id in (UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK):
+                self.bot.tankArray.append(unit.tag)
+
 
         #이미 할당된 유닛의 태그 빼고
         units_tag = units_tag - self.bot.combatArray - self.bot.reconArray - self.bot.nukeArray
 
 
-        #------유닛 타입에 따라 array 배정(레이븐은 패스)-----
+        #------유닛 타입에 따라 array 배정-----
         for tag in units_tag:
             unit = self.bot.units.find_by_tag(tag)
             if unit.type_id is UnitTypeId.RAVEN: #레이븐은 pass
@@ -846,7 +894,7 @@ class AssignManager(object): #뜯어고쳐야함
                 self.bot.nukeArray.add(unit.tag)
             elif unit.type_id in (UnitTypeId.SIEGETANKSIEGED,  UnitTypeId.SIEGETANK): #탱크(변신)는 컴뱃
                 self.bot.combatArray.add(unit.tag)
-                self.bot.tankArray.append(unit.tag)
+                #self.bot.tankArray.append(unit.tag)
             elif unit.type_id is UnitTypeId.MARINE: #마린도 컴뱃으로
                 self.bot.combatArray.add(unit.tag)
 
@@ -903,7 +951,7 @@ class AssignManager(object): #뜯어고쳐야함
             if len(self.bot.reconArray) >= 5: #몇명이 빠져있으면 돌아와라
                 for tag in self.bot.reconArray:
                     unit = self.bot.units.find_by_tag(tag)
-                    if unit.type_id in (UnitTypeId.MARINE):
+                    if unit.type_id is UnitTypeId.MARINE:
                         tag = self.bot.reconArray.pop() #뽑음(제거)
                         self.bot.combatArray.add(tag) #combat으로
                 #print("완전돌아옴", len(self.bot.reconArray),"/", len(self.bot.combatArray))
@@ -1159,15 +1207,23 @@ class Bot(sc2.BotAI):
             self.assign_manager.assign()
             self.productIng = 0 #생산명령 수행했다고 바꿔줌 
 
+        #밤까마귀는 train action에서 담당하지 않아서 밤까마귀가 없으면 배치가 안됨
+        #따라서 그냥 한번 더 해줌... 수정 필요
+        self.assign_manager.assign()
+
         self.combat_units = self.units.filter(
             lambda unit: unit.tag in self.combatArray
             and unit.type_id in [UnitTypeId.MARINE, UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED]
         )
+
         self.nuke_units = self.units.tags_in(self.nukeArray)
         
         self.tank_units = self.combat_units.filter(
             lambda unit:  unit.type_id in [UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED]
         )
+        
+        #print("탱크수: ", len(self.tank_units))
+
         #print(self.nuke_strategy)
         #actions += await self.attack_team_manager.step()
         
