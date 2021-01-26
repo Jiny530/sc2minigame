@@ -42,7 +42,7 @@ from termcolor import cprint, colored
 
 from .bot import Model
 from .consts import CommandType
-from .consts import TacticStrategy, Sample
+from .consts import ProductStrategy, NukeStrategy, Sample
 from .consts import MessageType
 from sc2_utils import keyboard, backup_dir, get_memory_usage, get_memory_usage_delta, kill_children_processes
 from sc2_utils.ascii_plot import draw_sparkline
