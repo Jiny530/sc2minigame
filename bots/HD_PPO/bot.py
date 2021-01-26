@@ -103,7 +103,7 @@ class NukeManager(object):
         nuke_units = self.bot.units.tags_in(self.bot.nukeArray)
         
         # 생산
-        if ghosts.amount == 0:
+        if ghosts.amount == 0 and self.bot.die_count <= 2:
             actions.append(cc.train(UnitTypeId.GHOST))
             
 
@@ -315,6 +315,13 @@ class ReconManager(object):
                 
                 if self.bot.units.tags_in(self.bot.combatArray).exists :
                     self.combat_center = self.bot.units.tags_in(self.bot.combatArray).center
+
+                    if self.bot.fighting == 1: #컴뱃유닛들이 싸우고 있으면
+                        actions.append(raven.move(self.combat_center)) #컴뱃유닛들의 중앙에서 멈춤
+
+                    else: # 싸우고 있지 않으면 정찰
+                        self.patrol(self.combat_center,None)
+                        actions.append(raven.move(self.patrol_pos[self.a]))
                 
                 '''
                 # 핵 감지하면 사령부 주위로 돌아가기
@@ -328,11 +335,10 @@ class ReconManager(object):
                     actions.append(raven.move(self.patrol_pos[self.a]))
                 # 나중에 combat 으로 바꾸기
                 else:  '''
-                self.patrol(self.combat_center,None)
-                actions.append(raven.move(self.patrol_pos[self.a]))
+                    
                 
                 self.recon(unit,actions)
-                print(self.bot.is_ghost)
+                #print(self.bot.is_ghost)
 
             threaten = self.bot.known_enemy_units.closer_than(10, raven.position) 
             enemy_ghost = threaten(UnitTypeId.GHOST)
@@ -458,6 +464,7 @@ class CombatManager(object):
         x=list()
         y=list()
         position=list()
+        self.position_list = list()
         r=7
 
         for theta in range(0, 360):
@@ -644,7 +651,7 @@ class CombatManager(object):
 
 
         ##-----move_check 변화-----
-        if self.bot.combat_units.amount > 40 and self.move_check == 0:
+        if self.bot.combat_units.amount > 40 and self.move_check == 0 and self.bot.tank_units.amount > 3:
             #print("20넘음")
             for unit in self.bot.combat_units(UnitTypeId.SIEGETANKSIEGED):
                 order = unit(AbilityId.UNSIEGE_UNSIEGE)
@@ -653,8 +660,8 @@ class CombatManager(object):
             #self.i = 0
             #self.j = 0
             self.move_check = 1
-            print("무브체크", self.move_check)
-        elif self.bot.combat_units.amount > 80 and self.move_check == 1:
+            #print("무브체크", self.move_check)
+        elif self.bot.combat_units.amount > 80 and self.move_check == 1 and self.bot.tank_units.amount > 7:
             #print("40넘음")
             for unit in self.bot.combat_units(UnitTypeId.SIEGETANKSIEGED):
                 order = unit(AbilityId.UNSIEGE_UNSIEGE)
@@ -663,8 +670,8 @@ class CombatManager(object):
             #self.i = 0
             #self.j = 0
             self.move_check = 2
-            print("무브체크", self.move_check)
-        elif self.bot.combat_units.amount > 100 and self.move_check == 2:
+            #print("무브체크", self.move_check)
+        elif self.bot.combat_units.amount > 100 and self.move_check == 2 and self.bot.tank_units.amount > 10:
             #print("40넘음")
             for unit in self.bot.combat_units(UnitTypeId.SIEGETANKSIEGED):
                 order = unit(AbilityId.UNSIEGE_UNSIEGE)
@@ -673,8 +680,8 @@ class CombatManager(object):
             #self.i = 0
             #self.j = 0
             self.move_check = 3
-            print("무브체크", self.move_check)
-        elif self.bot.combat_units.amount <= 30 and self.move_check >= 1:
+            #print("무브체크", self.move_check)
+        elif (self.bot.combat_units.amount <= 30 or self.bot.tank_units.amount < 3) and self.move_check >= 1:
             #한타 졌거나 해서 인원 줄었음
             for unit in self.bot.combat_units(UnitTypeId.SIEGETANKSIEGED):
                 order = unit(AbilityId.UNSIEGE_UNSIEGE)
@@ -683,9 +690,20 @@ class CombatManager(object):
             #self.i = 0
             #self.j = 0
             self.move_check -= 1
-            print("졌음-무브체크", self.move_check)
+            #print("졌음-무브체크", self.move_check)
+        elif self.bot.combat_units.amount <= 3 and self.move_check >= 1:
+            #한타 졌거나 해서 인원 줄었음
+            for unit in self.bot.combat_units(UnitTypeId.SIEGETANKSIEGED):
+                order = unit(AbilityId.UNSIEGE_UNSIEGE)
+                actions.append(order)
+            self.position_list = list()
+            #self.i = 0
+            #self.j = 0
+            self.move_check == 0
+            #print("졌음-무브체크", self.move_check)
                           
-                        
+        #print("move_check: ", self.move_check)
+
         return actions
 
 
@@ -894,7 +912,7 @@ class AssignManager(object): #뜯어고쳐야함
                 self.bot.nukeArray.add(unit.tag)
             elif unit.type_id in (UnitTypeId.SIEGETANKSIEGED,  UnitTypeId.SIEGETANK): #탱크(변신)는 컴뱃
                 self.bot.combatArray.add(unit.tag)
-                #self.bot.tankArray.append(unit.tag)
+                self.bot.tankArray.append(unit.tag)
             elif unit.type_id is UnitTypeId.MARINE: #마린도 컴뱃으로
                 self.bot.combatArray.add(unit.tag)
 
@@ -913,6 +931,7 @@ class AssignManager(object): #뜯어고쳐야함
         #if len(self.bot.nukeArray) >= 1:
             #print("에러확인2:",nuke_units(UnitTypeId.MARINE).amount)
 
+        '''
         if self.bot.fighting == 0: #컴뱃이 싸우고 있지 않음
             #------recon-----
             if self.bot.have_to_go == 1: #일부만 와라
@@ -939,7 +958,7 @@ class AssignManager(object): #뜯어고쳐야함
 
             #-----nuke-----
             #고스트가 새로 생성되어야하고 + 일단 윗길 아랫길만 해둠
-            if  self.bot.units(UnitTypeId.GHOST).amount == 0 and self.bot.nuke_strategy<=1:
+            if self.bot.units(UnitTypeId.GHOST).amount == 0 and self.bot.nuke_strategy<=1:
                 if self.bot.die_count <= 3: #combat이 defense인 상태
                     if len(self.bot.combatArray) >= 10: #그때 컴뱃에 10명은 넘어야(중간에 지켜야해서)
                         while self.bot.nuke_units(UnitTypeId.MARINE).amount == 5:
@@ -960,7 +979,7 @@ class AssignManager(object): #뜯어고쳐야함
                     unit = self.bot.units.find_by_tag(tag)
                     if unit.type_id in (UnitTypeId.MARINE):
                         tag = self.bot.nukeArray.pop() #뽑음(제거)
-                        self.bot.combatArray.add(tag)
+                        self.bot.combatArray.add(tag)'''
                 
         
 
@@ -1182,8 +1201,8 @@ class Bot(sc2.BotAI):
             # print("한방딜 ㄱ: ", self.bigDamage, "딜량: ", self.state.score.total_damage_dealt_life - self.previous_Damage)
         self.previous_Damage = self.state.score.total_damage_dealt_life #갱신 
         """
-          
-        self.last_step_time = self.time
+        #self.last_step_time = self.time
+        
             
 
         #생산 명령이 처리되었다면
@@ -1222,7 +1241,7 @@ class Bot(sc2.BotAI):
             lambda unit:  unit.type_id in [UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED]
         )
         
-        #print("탱크수: ", len(self.tank_units))
+        #print("컴뱃어레이: ", len(self.combatArray), "컴뱃유닛츠: ", self.combat_units.amount)
 
         #print(self.nuke_strategy)
         #actions += await self.attack_team_manager.step()
