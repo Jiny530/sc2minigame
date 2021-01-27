@@ -105,7 +105,7 @@ class NukeManager(object):
         nuke_units = self.bot.units.tags_in(self.bot.nukeArray)
         
         # 생산
-        if ghosts.amount == 0:
+        if ghosts.amount == 0 and self.bot.die_count <= 2:
             actions.append(cc.train(UnitTypeId.GHOST))
             
 
@@ -769,6 +769,13 @@ class AssignManager(object): #뜯어고쳐야함
         self.bot.combatArray = self.bot.combatArray & units_tag 
         self.bot.reconArray = self.bot.reconArray & units_tag
         self.bot.nukeArray = self.bot.nukeArray & units_tag
+        #탱크는 리스트라 다르게
+        self.bot.tankArray.clear()
+        for tag in units_tag:
+            unit = self.bot.units.find_by_tag(tag)
+            if unit.type_id in (UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK):
+                self.bot.tankArray.append(unit.tag)
+
 
         tank_tag = self.bot.units(UnitTypeId.SIEGETANKSIEGED).tags | self.bot.units(UnitTypeId.SIEGETANK).tags
         j = 0
