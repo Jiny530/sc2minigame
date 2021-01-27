@@ -80,10 +80,11 @@ class NukeManager(object):
         self.nuke_time = 0
         self.stop = False
         self.middle_alert = False
+        self.is_nuke=0
 
     def reset(self):
         self.ghost_pos = self.bot.start_location.x
-        self.enemy_pos= self.bot.enemy_start_locations[0].x
+        self.enemy_pos= self.bot.enemy_cc.x
         self.course = [Point2((self.ghost_pos,55)),Point2((self.enemy_pos,55)),Point2((self.ghost_pos,10)),Point2((self.enemy_pos,10))]
         if self.ghost_pos == 32.5:
             self.middle = 72.5
@@ -147,7 +148,13 @@ class NukeManager(object):
                     actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
                     if threaten.amount > 10 and self.bot.nuke_strategy == 2:
                         self.bot.ghost_ready = True
-                        actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=threaten.closest_to(ghosts.first)))
+                        ghost_abilities = await self.bot.get_available_abilities(ghost)
+                        if AbilityId.TACNUKESTRIKE_NUKECALLDOWN in ghost_abilities: 
+                            self.is_nuke = 1
+                            actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=threaten.center))
+                        else : 
+                            self.is_nuke = 0
+                        
 
                 
             # 위로
@@ -181,7 +188,7 @@ class NukeManager(object):
                         self.pos=3 # 대기장소 도착
 
             # 가운데로 가라 - 유령 혼자만 갈 거임
-            elif self.bot.nuke_strategy == 2 and self.pos!=3:
+            elif self.bot.nuke_strategy == 2 and self.pos!=3 and not self.is_nuke:
                 # 에너지가 50 이상일때, 가운데로 출발
                 if ghost.energy > 70 and ghost.distance_to(Point2((self.middle,30))) > 3 and self.pos == 0:
                     actions.append(ghost.move(Point2((self.middle,30)))) #중간지점으로 가기
@@ -198,7 +205,7 @@ class NukeManager(object):
                    
                     if AbilityId.TACNUKESTRIKE_NUKECALLDOWN in ghost_abilities: 
                         actions.append(ghost(AbilityId.BEHAVIOR_CLOAKON_GHOST))
-                        actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=self.bot.enemy_start_locations[0]))
+                        actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=self.bot.enemy_cc))
                     
                         
 
@@ -209,7 +216,7 @@ class NukeManager(object):
                 if AbilityId.TACNUKESTRIKE_NUKECALLDOWN in ghost_abilities and ghost.is_idle:
                     # 전술핵 발사 가능(생산완료)하고 고스트가 idle 상태이면, 적 본진에 전술핵 발사
                     actions.append(ghost(AbilityId.BEHAVIOR_CLOAKON_GHOST))
-                    actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=self.bot.enemy_start_locations[0]))
+                    actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=self.bot.enemy_cc))
                     self.nuke_time = self.bot.time
                     self.stop = True
                     self.bot.nuke_reward += 0.1
@@ -439,11 +446,11 @@ class CombatManager(object):
         if self.bot.start_location.x > 40:
             
             self.def_pos = [Point2((72,30)), Point2((62,30)),Point2((54,30)),Point2((46,30)),Point2((38,30))]
-            self.mir_pos = [Point2((70,30)),Point2((60,30)),Point2((50,30)),Point2((40,30)),Point2((35,30))]
+            self.mir_pos = [Point2((72,30)),Point2((62,30)),Point2((52,30)),Point2((42,30)),Point2((35,30))]
         else:
             
             self.def_pos = [Point2((55,30)), Point2((65,30)),Point2((75,30)),Point2((85,30)),Point2((88,30))]
-            self.mir_pos = [Point2((55,30)),Point2((65,30)),Point2((75,30)),Point2((85,30)),Point2((88,30))]
+            self.mir_pos = [Point2((53,30)),Point2((63,30)),Point2((73,30)),Point2((83,30)),Point2((88,30))]
 
         '''
         def_pos1 = self.bot.start_location + 0.30 * (enemy_cc.position - self.bot.start_location)
@@ -543,7 +550,7 @@ class CombatManager(object):
     async def step(self):
         actions = list()
 
-        enemy_cc = self.bot.enemy_start_locations[0]  # 적 시작 위치
+        enemy_cc = self.bot.enemy_cc  # 적 시작 위치
         cc_abilities = await self.bot.get_available_abilities(self.bot.cc)
         mule = self.bot.units(UnitTypeId.MULE)
         mule_pos = self.bot.cc.position.towards(enemy_cc.position, -5)
@@ -609,7 +616,7 @@ class CombatManager(object):
         for unit in self.bot.units.not_structure:  # 건물이 아닌 유닛만 선택
             if unit in self.bot.combat_units:
                 ##-----타겟 설정-----
-                enemy_unit = self.bot.enemy_start_locations[0]
+                enemy_unit = self.bot.enemy_cc
                 if self.bot.known_enemy_units.exists:
                     enemy_unit = self.bot.known_enemy_units.closest_to(unit)  # 가장 가까운 적 유닛
 
@@ -1171,6 +1178,12 @@ class Bot(sc2.BotAI):
         """
         새로운 게임마다 초기화
         """
+
+        
+        if self.start_location.x > 40:
+            self.enemy_cc = Point2(Point2((32.5,31.5)))
+        else:
+            self.enemy_cc = Point2(Point2((95.5,31.5)))
         self.step_interval = self.step_interval
         self.last_step_time = -self.step_interval
 
@@ -1189,7 +1202,6 @@ class Bot(sc2.BotAI):
         self.recon_manager.reset()
         
         self.assign_manager.assign()
-
 
         # Learner에 join
         self.game_id = f"{self.host_name}_{time.time()}"
