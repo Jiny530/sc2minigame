@@ -127,7 +127,7 @@ class Bot(sc2.BotAI):
                 if unit.type_id in (UnitTypeId.MARINE, UnitTypeId.MARAUDER):
                     if use_stimpack and unit.distance_to(target) < 15:
                         # 유닛과 목표의 거리가 15이하일 경우 스팀팩 사용
-                        if not unit.has_buff(BuffId.STIMPACK) and unit.health_percentage > 0.5:
+                        if unit.health_percentage > 0.5:
                             # 현재 스팀팩 사용중이 아니며, 체력이 50% 이상
                             if self.time - self.evoked.get((unit.tag, AbilityId.EFFECT_STIM), 0) > 1.0:
                                 # 1초 이전에 스팀팩을 사용한 적이 없음
