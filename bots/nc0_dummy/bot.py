@@ -21,7 +21,9 @@ class Bot(sc2.BotAI):
     """
     def __init__(self, *args, **kwargs):
         super().__init__()
+
         self.build_order = list() # 생산할 유닛 목록
+
 
     def on_start(self):
         """
@@ -95,7 +97,7 @@ class Bot(sc2.BotAI):
                 elif self.i==1 and self.units(UnitTypeId.NUKE).amount > 0:
                     print("우리팀 핵 : ",self.units(UnitTypeId.NUKE).amount)
                     print("우리팀 핵 : ",self.units(UnitTypeId.NUKE).first.position)
-
-
         await self.do_actions(actions)
+
+
 
