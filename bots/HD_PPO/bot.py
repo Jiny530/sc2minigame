@@ -147,7 +147,7 @@ class NukeManager(object):
                     actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
                     if threaten.amount > 10 and self.bot.nuke_strategy == 2:
                         self.bot.ghost_ready = True
-                        actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=threaten.center))
+                        actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=threaten.closest_to(ghosts.first)))
 
                 
             # 위로
@@ -378,7 +378,9 @@ class ReconManager(object):
                     self.bot.last_pos = target.position
                     pos = raven.position.towards(target.position, 5)
                     pos = await self.bot.find_placement(UnitTypeId.AUTOTURRET, pos)
-                    actions.append(raven(AbilityId.BUILDAUTOTURRET_AUTOTURRET, pos))
+                    if self.bot.units.tags_in(self.bot.combatArray).amount < 3 and self.bot.units(UnitTypeId.AUTOTURRET).amount == 0:
+                        actions.append(raven(AbilityId.BUILDAUTOTURRET_AUTOTURRET, pos))
+                    # 상황에 맞게 몇개 쓸것인지 등등 나중에 세세하게 정하기
 
                     #해병부대 - 열명 넘는지는 어사인에서 관리
                     recon_units = self.bot.units.tags_in(self.bot.reconArray)
@@ -428,9 +430,32 @@ class CombatManager(object):
         self.j = 0 #y쪽 가중치 안씀
         self.n = 0
 
+        self.def_pos = list()
+
         if self.bot.start_location.x == 32.5: self.player = 1
         else: self.player = 2
 
+        # 파란색 기지일때
+        if self.bot.start_location.x > 40:
+            
+            self.def_pos = [Point2((72,30)), Point2((62,30)),Point2((54,30)),Point2((46,30)),Point2((38,30))]
+            self.mir_pos = [Point2((70,30)),Point2((60,30)),Point2((50,30)),Point2((40,30)),Point2((35,30))]
+        else:
+            
+            self.def_pos = [Point2((55,30)), Point2((65,30)),Point2((75,30)),Point2((85,30)),Point2((88,30))]
+            self.mir_pos = [Point2((55,30)),Point2((65,30)),Point2((75,30)),Point2((85,30)),Point2((88,30))]
+
+        '''
+        def_pos1 = self.bot.start_location + 0.30 * (enemy_cc.position - self.bot.start_location)
+        def_pos2 = self.bot.start_location + 0.55 * (enemy_cc.position - self.bot.start_location)
+        def_pos3 = self.bot.start_location + 0.75 * (enemy_cc.position - self.bot.start_location)
+        def_pos4 = self.bot.start_location + 0.9 * (enemy_cc.position - self.bot.start_location)
+        
+        _pos1 = self.bot.start_location + 0.25 * (enemy_cc.position - self.bot.start_location)
+        _pos2 = self.bot.start_location + 0.5 * (enemy_cc.position - self.bot.start_location)
+        _pos3 = self.bot.start_location + 0.7 * (enemy_cc.position - self.bot.start_location)
+        _pos4 = self.bot.start_location + 0.85 * (enemy_cc.position - self.bot.start_location)
+        '''
 
     def distance(self, pos1, pos2):
         """
@@ -486,7 +511,7 @@ class CombatManager(object):
             self.position_list.append(Point2((position[i][0], position[i][1])))
     
             
-    def moving(self, unit, pos, actions):
+    def moving(self, unit, pos, actions, target):
         """
         전차의 이동 및 변신 담당
         """
@@ -495,6 +520,14 @@ class CombatManager(object):
         #if len(self.position_list) == self.n : #리스트 갱신
             #print(len(self.position_list),"@@@@@@@@@",self.n)
             #self.circle2(pos)
+        if self.distance(unit.position, self.position_list[self.n]) < 1: #지정위치도착
+            if unit.type_id == UnitTypeId.SIEGETANK: 
+                order = unit(AbilityId.SIEGEMODE_SIEGEMODE) #변신함
+                actions.append(order)
+        elif self.bot.fighting:
+            actions.append(unit.attack(target))
+
+
         for tank in self.bot.tankArray: #이동 
                 #if unit.tag == tank and t<=self.n:
             if unit.tag == tank:
@@ -502,10 +535,8 @@ class CombatManager(object):
                 break
                     #print("!!!!!!!!!!!!!!!!!")
             t+=1
-        if self.distance(unit.position, self.position_list[self.n]) < 1: #지정위치도착
-            if unit.type_id == UnitTypeId.SIEGETANK: 
-                order = unit(AbilityId.SIEGEMODE_SIEGEMODE) #변신함
-                actions.append(order)
+
+        
         self.n = self.n + 1 
         
     #region Description
@@ -518,8 +549,8 @@ class CombatManager(object):
         mule_pos = self.bot.cc.position.towards(enemy_cc.position, -5)
         #다친 기계 유닛(탱크)
         wounded_units = self.bot.units.filter(
-            lambda u: u.is_mechanical and u.health_percentage < 0.5
-        )  # 체력이 100% 이하인 유닛 검색
+            lambda u: u.is_mechanical and u.health_percentage < 0.5 and u.type_id is not UnitTypeId.AUTOTURRET
+        )  # 체력이 100% 이하인 유닛 검색, 오토터렛 제외
 
         #얼마나 많은 유닛이 공격중인가?
         attacking_units = self.bot.combat_units.filter(
@@ -569,17 +600,7 @@ class CombatManager(object):
 
     #endregion
         
-         #방어시 집결 위치
-        #defense_position = self.bot.start_location + 0.25 * (enemy_cc.position - self.bot.start_location)
-        def_pos1 = self.bot.start_location + 0.30 * (enemy_cc.position - self.bot.start_location)
-        def_pos2 = self.bot.start_location + 0.55 * (enemy_cc.position - self.bot.start_location)
-        def_pos3 = self.bot.start_location + 0.75 * (enemy_cc.position - self.bot.start_location)
-        def_pos4 = self.bot.start_location + 0.9 * (enemy_cc.position - self.bot.start_location)
-        
-        _pos1 = self.bot.start_location + 0.25 * (enemy_cc.position - self.bot.start_location)
-        _pos2 = self.bot.start_location + 0.5 * (enemy_cc.position - self.bot.start_location)
-        _pos3 = self.bot.start_location + 0.7 * (enemy_cc.position - self.bot.start_location)
-        _pos4 = self.bot.start_location + 0.85 * (enemy_cc.position - self.bot.start_location)
+
 
         # -----유닛 명령 생성-----
         ## 마이크로 컨트롤
@@ -592,6 +613,12 @@ class CombatManager(object):
                 if self.bot.known_enemy_units.exists:
                     enemy_unit = self.bot.known_enemy_units.closest_to(unit)  # 가장 가까운 적 유닛
 
+                # 유령이나 밴시 있으면 그거 먼저 치기, 근데 사령부 주변에서 발견됐을때 갈수도 있으니 나중에 조정
+                if self.bot.known_enemy_units(UnitTypeId.GHOST).exists:
+                    enemy_unit = self.bot.known_enemy_units(UnitTypeId.GHOST).closest_to(unit)
+                elif self.bot.known_enemy_units(UnitTypeId.GHOST).exists:
+                    enemy_unit = self.bot.known_enemy_units(UnitTypeId.BANSHEE).closest_to(unit)
+
                 # 적 사령부와 가장 가까운 적 유닛중 더 가까운 것을 목표로 설정
                 if unit.distance_to(enemy_cc) < unit.distance_to(enemy_unit):
                     target = enemy_cc
@@ -603,18 +630,21 @@ class CombatManager(object):
                 if unit.type_id is UnitTypeId.MARINE:
                     if self.move_check == 0: #초기상태+대기중
                         #print("해병: 초기상태+대기중")
-                        self.target_pos = _pos1
-                        actions.append(unit.attack(self.target_pos))
+                        self.target_pos = self.mir_pos[0]
                     elif self.move_check == 1: 
-                        self.target_pos = _pos2
-                        actions.append(unit.attack(self.target_pos))
+                        self.target_pos = self.mir_pos[1]
                     elif self.move_check == 2: 
-                        self.target_pos = _pos3
-                        actions.append(unit.attack(self.target_pos))
+                        self.target_pos =self.mir_pos[2]
                     elif self.move_check == 3:
-                        self.target_pos = _pos4
+                        self.target_pos = self.mir_pos[3]
+                    elif self.move_check == 5:
+                        self.target_pos = self.mir_pos[4]
+
+                    if self.bot.is_ghost > 0: # 고스트, 벤시 있으면 걔네 먼저 공격
+                        actions.append(unit.attack(target))
+                    else :
                         actions.append(unit.attack(self.target_pos))
-                    if self.distance(self.bot.combat_units.center, _pos4) < 2: #위치3도착
+                    if self.distance(self.bot.combat_units.center, self.mir_pos[3]) < 2: #위치3도착
                         actions.append(unit.attack(target))
 
                     ##-----스킬-----
@@ -639,15 +669,19 @@ class CombatManager(object):
 #endregion
                     ##-----탱크-----
                 if unit.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
-
+                        
                     if self.move_check == 0: #초기상태+대기중
-                        self.moving(unit, def_pos1, actions)
+                        self.moving(unit, self.def_pos[0], actions, target)
                     elif self.move_check == 1: 
-                        self.moving(unit, def_pos2, actions)
+                        self.moving(unit, self.def_pos[1], actions, target)
                     elif self.move_check == 2: 
-                        self.moving(unit, def_pos3, actions)
+                        self.moving(unit, self.def_pos[2], actions, target)
                     elif self.move_check == 3: 
-                        self.moving(unit, def_pos4, actions)
+                        self.moving(unit, self.def_pos[3], actions, target)
+                    elif self.move_check == 5: 
+                        self.moving(unit, self.def_pos[4], actions, target)
+
+
 
 
         ##-----move_check 변화-----
@@ -661,7 +695,7 @@ class CombatManager(object):
             #self.j = 0
             self.move_check = 1
             #print("무브체크", self.move_check)
-        elif self.bot.combat_units.amount > 80 and self.move_check == 1 and self.bot.tank_units.amount > 7:
+        elif self.bot.combat_units.amount > 50 and self.move_check == 1 and self.bot.tank_units.amount > 7:
             #print("40넘음")
             for unit in self.bot.combat_units(UnitTypeId.SIEGETANKSIEGED):
                 order = unit(AbilityId.UNSIEGE_UNSIEGE)
@@ -671,7 +705,7 @@ class CombatManager(object):
             #self.j = 0
             self.move_check = 2
             #print("무브체크", self.move_check)
-        elif self.bot.combat_units.amount > 100 and self.move_check == 2 and self.bot.tank_units.amount > 10:
+        elif self.bot.combat_units.amount > 60 and self.move_check == 2 and self.bot.tank_units.amount > 10:
             #print("40넘음")
             for unit in self.bot.combat_units(UnitTypeId.SIEGETANKSIEGED):
                 order = unit(AbilityId.UNSIEGE_UNSIEGE)
@@ -681,6 +715,18 @@ class CombatManager(object):
             #self.j = 0
             self.move_check = 3
             #print("무브체크", self.move_check)
+        elif self.bot.combat_units.amount > 65 and self.move_check == 3 and self.bot.tank_units.amount > 10:
+            #print("40넘음")
+            for unit in self.bot.combat_units(UnitTypeId.SIEGETANKSIEGED):
+                order = unit(AbilityId.UNSIEGE_UNSIEGE)
+                actions.append(order)
+            self.position_list = list()
+            #self.i = 0
+            #self.j = 0
+            self.move_check = 4
+            #print("무브체크", self.move_check)
+        elif self.move_check ==4 and self.bot.combat_units.amount > self.bot.known_enemy_units.amount:
+            self.move_check = 5
         elif (self.bot.combat_units.amount <= 30 or self.bot.tank_units.amount < 3) and self.move_check >= 1:
             #한타 졌거나 해서 인원 줄었음
             for unit in self.bot.combat_units(UnitTypeId.SIEGETANKSIEGED):
