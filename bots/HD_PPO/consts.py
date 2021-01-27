@@ -8,7 +8,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 #
 #  ProxyEnv와 Actor가 주고 받는 메시지 타입
 #
-
+ 
 class CommandType(bytes, Enum):
     PING = b'\x00'
     REQ_TASK = b'\x01'
@@ -31,10 +31,10 @@ for idx, strategy in enumerate(CombatStrategy):
 
     
 class NukeStrategy(Enum):
-    UPAlone = 0
-    UPTogether = 1
-    DownAlone = 2
-    DownTogether = 3
+    UP = 0
+    DOWN = 1
+    FRONT = 2
+    DRAW = 3
 
 Sample = namedtuple('Sample', 's, a, r, done, logp, value')
 

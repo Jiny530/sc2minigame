@@ -5,7 +5,7 @@ __author__ = '박현수 (hspark8312@ncsoft.com), NCSOFT Game AI Lab'
 # kill -9 $(ps ax | grep SC2_x64 | fgrep -v grep | awk '{ print $1 }')
 # kill -9 $(ps ax | grep bots.nc_example_v5.bot | fgrep -v grep | awk '{ print $1 }')
 # ps aux
-
+ 
 import argparse
 import pickle
 import os
@@ -42,7 +42,7 @@ from termcolor import cprint, colored
 
 from .bot import Model
 from .consts import CommandType
-from .consts import ProductStrategy, NukeStrategy, Sample
+from .consts import NukeStrategy, Sample
 from .consts import MessageType
 from sc2_utils import keyboard, backup_dir, get_memory_usage, get_memory_usage_delta, kill_children_processes
 from sc2_utils.ascii_plot import draw_sparkline
