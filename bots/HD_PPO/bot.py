@@ -677,8 +677,8 @@ class CombatManager(object):
                             target = enemy_ghost.closest_to(unit.position)
                         elif enemy_raven.exists:
                             target = enemy_raven.closest_to(unit.position)
-                        elif flying_buff.exists:
-                            target = flying_buff.closest_to(unit)
+                        #elif flying_buff.exists:
+                            #target = flying_buff.closest_to(unit)
                         elif flying_target.exists:
                             target = flying_target.closest_to(unit)
                         else:
@@ -696,7 +696,7 @@ class CombatManager(object):
                         actions.append(unit.attack(target))
 
                     ##-----스킬-----
-                    if unit.distance_to(target) < 15 and self.bot.known_enemy_units.amount > 5:
+                    if unit.distance_to(target) < 15 and threaten.amount > 5:
                             # 유닛과 목표의 거리가 15이하일 경우 스팀팩 사용
                         if not unit.has_buff(BuffId.STIMPACK) and unit.health_percentage > 0.5:
                             # 현재 스팀팩 사용중이 아니며, 체력이 50% 이상
@@ -1084,8 +1084,8 @@ class Bot(sc2.BotAI):
         if self.productIng == 0: 
             #생산
             actions += await self.train_action() #생산
-            if self.start_location.x<40:
-                print(actions)
+            #if self.start_location.x<40:
+                #print(actions)
             self.productIng = 1 #생산명령 들어갔다고 바꿔줌
 
         #생산 명령이 들어갔다면
