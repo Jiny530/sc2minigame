@@ -156,73 +156,77 @@ class NukeManager(object):
                         self.pos=3 # 대기장소 도착
 
             # 가운데로 가라 - 유령 혼자만 갈 거임
-            elif self.bot.nuke_strategy == 2 and self.bot.is_raven == 0: 
+            elif self.bot.nuke_strategy == 2 : 
                 # 에너지가 50 이상일때, 가운데로 출발
 
-                if ghost.energy > 70 and ghost.distance_to(Point2((self.middle,31.5))) > 3 and self.pos == 0 and threaten.amount <= 10 and not self.bot.ghost_ready:
-                    actions.append(ghost.move(Point2((self.bot.enemy_cc.x - 10,self.bot.enemy_cc.y)))) #중간지점으로 가기
+                if ghost.energy > 70 and ghost.distance_to(Point2((self.middle,31.5))) > 3 and self.pos == 0 :
+                    actions.append(ghost.move(Point2((self.middle,self.bot.enemy_cc.y)))) #중간지점으로 가기
                     self.pos=1 
 
-                # 가던도중 적을 만났거나, 무사히 가운데로 왔다면 은폐
-                if ghost.distance_to(self.bot.enemy_cc) < 15 and self.pos == 1:
-                    self.pos = 2
-
-                if self.pos == 2 and ghost.is_idle:
+                if threaten.amount > 0 :
+                    if ravens.exists:
+                        # 레이븐 만나면 일단 다 포기하고 첫 위치로..?
+                        self.bot.is_raven = 1
+                        self.pos = 0
+                        #self.is_nuke = 0
+                        self.bot.ghost_ready = False
+                        actions.append(ghost.move(self.bot.start_location))
                     
-                    self.bot.ghost_ready = True
-                    ghost_abilities = await self.bot.get_available_abilities(ghost)
-                   
-                    if AbilityId.TACNUKESTRIKE_NUKECALLDOWN in ghost_abilities : 
-                        actions.append(ghost(AbilityId.BEHAVIOR_CLOAKON_GHOST))
-                        if ghost.distance_to(self.bot.enemy_cc) < 9:
-                            distance = ghost.position.x - self.bot.enemy_cc.x
-                            if distance > 0:
-                                distance = 10 + distance
-                            else:
-                                distance = -10 - distance 
-                            actions.append(ghost.move(Point2((ghost.position.x + distance, ghost.position.y))))
+                    # 컴뱃부대 존재하고 가까이에 있으면 핵X
+                    if self.bot.combat_units.exists and ghost.distance_to(self.bot.combat_units.center) < 5:
+                        # 인원수 적으면 은신
+                        if self.bot.combat_units.amount < 15:
+                            actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
+                        if self.bot.combat_units(UnitTypeId.RAVEN).exists:
+                            pass # 밤까마귀 없으면 있을때 인식했던 밴시, 고스트에 EMP탄환 쏘기
+                        elif threaten(UnitTypeId.BANSHEE).exists:
+                            actions.append(ghost(AbilityId.EMP_EMP, target=threaten(UnitTypeId.BANSHEE).closest_to(ghost).position))
+                        elif threaten(UnitTypeId.GHOST).exists:
+                            actions.append(ghost(AbilityId.EMP_EMP, target=threaten(UnitTypeId.GHOST).closest_to(ghost).position))
 
-                        if ghost.energy >= 14 and ghost.is_cloaked:
-                            actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=self.bot.enemy_cc))
-                        elif ghost.energy < 14:
-                            actions.append(ghost.move(self.bor.start_location))
-
-              
-            # 기지와 떨어졌을때 적 발견시 은폐
-            if threaten.amount > 0 :
-                if ravens.exists:
-                    self.bot.is_raven = 1
-                    self.pos = 0
-                    self.is_nuke = 0
-                    self.bot.ghost_ready = False
-                    actions.append(ghost.move(self.bot.start_location))
-                # 위 or 아래로 가고있는 와중, 고스트 혼자가 아닐땐 공격명령
-                elif self.bot.nuke_strategy == 2:
-                    if ghost.energy > 30 and ghost.distance_to(self.bot.combat_units.center) > 5:
+                    # 컴뱃부대랑 멀리있으면 적 발견하자마자 은신, 핵 O
+                    elif ghost.distance_to(self.bot.combat_units.center) > 5:
                         actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
-                    # 적이 10명보다 많으면 핵 준비
-                    if threaten.amount > 10 :
-                        self.bot.ghost_ready = True # 핵 생산해
-                        ghost_abilities = await self.bot.get_available_abilities(ghost)
-                        if AbilityId.TACNUKESTRIKE_NUKECALLDOWN in ghost_abilities and ghost.energy > 14: 
-                            self.is_nuke = 1
-                            
-                            if ghost.distance_to(threaten.center) < 9:
-                                distance = ghost.position.x - threaten.center.x
-                                if distance > 0:
-                                    distance = 10 + distance
+                        
+                        # 적이 15명 이상이고 나랑 더 가깝다면 핵 쏘기-> 나중에 확인
+                        if threaten.amount > 15: # and ghost.distance_to(threaten.center) < self.bot.combat_units.distance_to(threaten.center):
+                            self.bot.ghost_ready = True # 핵 생산해
+                            ghost_abilities = await self.bot.get_available_abilities(ghost)
+                            if AbilityId.TACNUKESTRIKE_NUKECALLDOWN in ghost_abilities and ghost.energy > 14: 
+                                # 적이랑 가까우면 멀리 떨어져서 쏘기
+                                if ghost.distance_to(threaten.center) < 9:
+                                    distance = ghost.position.x - threaten.center.x
+                                    if distance > 0:
+                                        distance = 10 + distance
+                                    else:
+                                        distance = -10 - distance 
+                                    actions.append(ghost.move(Point2((ghost.position.x + distance, ghost.position.y))))
                                 else:
-                                    distance = -10 - distance 
-                                actions.append(ghost.move(Point2((ghost.position.x + distance, ghost.position.y))))
-                            if ghost.distance_to(threaten.center) >= 9:
-                                actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=threaten.center))
-                                
-                        elif ghost.energy < 14 : 
-                            self.pos = 0
-                            self.is_nuke = 0
-                            self.bot.ghost_ready = False
-                            actions.append(ghost.move(self.bot.start_location))
-                '''
+                                    actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=threaten.center))
+                                    # 핵 쏴야하는데 은신에너지 부족하면 후퇴        
+                            elif ghost.energy < 14 : 
+                                self.pos = 0
+                                #self.is_nuke = 0
+                                self.bot.ghost_ready = False
+                                actions.append(ghost.move(self.bot.start_location))
+                        
+                        # 적이 15명 이상이 아니라면 핵 쏘러가기
+                        elif self.pos == 1:
+                            if ghost.energy >= 14 and ghost.is_cloaked:
+                                actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=self.bot.enemy_cc))
+                            elif ghost.energy < 14: #
+                                actions.append(ghost.move(self.bor.start_location))
+                                self.pos = 0
+                                self.bot.ghost_ready = False
+                            elif ghost.energy >= 39 :
+                                actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
+                                actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=self.bot.enemy_cc))
+                        
+                    
+              
+            # 위, 아래로 갈때 적 발견 시 행동
+            
+            '''
                 if not self.stop and nuke_units.amount > 1 and self.bot.nuke_strategy < 2:
                     if ravens.amount > 0: # 밤까마귀이면 도망가는 코드 추가
                         for unit in nuke_units:
@@ -240,7 +244,7 @@ class NukeManager(object):
                                 pass
                             else:
                                 actions.append(unit.attack(threaten.closest_to(unit)))
-                '''
+                
 
             if self.pos==3 or self.stop and ghost.is_idle:
                 self.bot.ghost_ready = True # @@고스트 준비됐음 플레그, 핵 우선으로 생산할까??
@@ -263,11 +267,13 @@ class NukeManager(object):
 
             if self.bot.combat_units.exists and ghost.distance_to(self.bot.start_location) < self.bot.combat_units.center.distance_to(self.bot.start_location):
                 actions.append(ghost(AbilityId.BEHAVIOR_CLOAKOFF_GHOST))
-
+            '''
         elif ghosts.amount==0 and self.dead==3 : #고스트 죽음 (amount==0)
+            
             self.pos=0
             self.bot.die_count += 1
             self.stop = False
+            self.ghost_ready = False
             self.bot.nuke_reward -= 0.1
 
             if nuke_units.amount > 0:
