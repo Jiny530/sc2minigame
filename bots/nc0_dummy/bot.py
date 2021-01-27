@@ -40,6 +40,11 @@ class Bot(sc2.BotAI):
         else :
             self.patrol_pos = [point2((95.5, 35)), point2((105.5, 30)), point2((95.5, 25)), point2((90.5, 30))]
         self.a=0"""
+
+    def on_start(self):
+        
+        self.cc = self.units(UnitTypeId.COMMANDCENTER).first  # 전체 유닛에서 사령부 검색
+
     async def on_step(self, iteration: int):
         """
         :param int iteration: 이번이 몇 번째 스텝인지를 인자로 넘겨 줌
@@ -62,6 +67,8 @@ class Bot(sc2.BotAI):
         # do_actions 함수에 인자로 전달하면 게임에서 실행된다.
         # do_action 보다, do_actions로 여러 액션을 동시에 전달하는 
         # 것이 훨씬 빠르다."""
-        
+        #cc_abilities = await self.get_available_abilities(self.cc)
+        #print("-------------")
+        #print("핵생산가능?: ", AbilityId.BUILD_NUKE in cc_abilities)
         await self.do_actions(actions)
 
