@@ -155,7 +155,7 @@ class NukeManager(object):
                         self.pos=3 # 대기장소 도착
 
             # 가운데로 가라 - 유령 혼자만 갈 거임
-            elif self.bot.nuke_strategy == 2 and self.pos!=3 and self.is_nuke == 0: 
+            elif self.bot.nuke_strategy == 2 and self.pos!=3 and self.is_nuke == 0 and self.bot.is_raven == 0: 
                 # 에너지가 50 이상일때, 가운데로 출발
                 if ghost.energy > 70 and ghost.distance_to(Point2((self.middle,30))) > 3 and self.pos == 0 and threaten.amount < 10 and not self.bot.ghost_ready:
                     actions.append(ghost.move(Point2((self.middle,30)))) #중간지점으로 가기
@@ -177,6 +177,11 @@ class NukeManager(object):
               
             # 기지와 떨어졌을때 적 발견시 은폐
             if threaten.amount > 0 :
+                if ravens.exists:
+                    self.bot.is_raven = 1
+                    self.pos = 0
+                    self.is_nuke = 0
+                    acction.append(ghost.move(self.start_location))
                 # 위 or 아래로 가고있는 와중, 고스트 혼자가 아닐땐 공격명령
                 if self.bot.nuke_strategy == 2:
                     actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
@@ -234,7 +239,6 @@ class NukeManager(object):
             #은폐중, 에너지가 16보다 적고, 핵이 준비되어있지 않으면 도망치기
             if ghost.is_cloaked and ghost.energy < 16 and not self.bot.units(UnitTypeId.NUKE).exists:
                 actions.append(ghost.move(self.bot.combat_units.center))
-                print("도망쳐")
                 self.pos = 0
                 self.is_nuke = 0
 
@@ -1198,6 +1202,8 @@ class Bot(sc2.BotAI):
 
         self.nuke_alert = False
         self.nuke_time = 0
+
+        self.is_nuke = 0
         
     def on_start(self):
         """
