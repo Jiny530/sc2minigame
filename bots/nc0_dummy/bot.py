@@ -58,13 +58,16 @@ class Bot(sc2.BotAI):
             if ghosts.amount == 0:
                 actions.append(cc.train(UnitTypeId.GHOST))
             else :
-
+                
+                
                 if AbilityId.BUILD_NUKE in cc_abilities:
                     actions.append(cc(AbilityId.BUILD_NUKE))
                     if self.i: 
                         print("핵생산")
                 ghost = ghosts.first
                 ghost_abilities = await self.get_available_abilities(ghost)
+                print(ghost_abilities)
+                '''
                 if self.pos ==0:
                     actions.append(ghost.move(Point2((60,30))))
                     self.pos =2
@@ -97,6 +100,7 @@ class Bot(sc2.BotAI):
                 elif self.i==1 and self.units(UnitTypeId.NUKE).amount > 0:
                     print("우리팀 핵 : ",self.units(UnitTypeId.NUKE).amount)
                     print("우리팀 핵 : ",self.units(UnitTypeId.NUKE).first.position)
+                '''
         await self.do_actions(actions)
 
 
