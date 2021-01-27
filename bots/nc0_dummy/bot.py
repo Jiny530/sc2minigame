@@ -1,74 +1,103 @@
 
 __author__ = '박현수 (hspark8312@ncsoft.com), NCSOFT Game AI Lab'
 
-
-import os
-
-import pathlib
-import pickle
 import time
 
-import nest_asyncio
-import numpy as np
 import sc2
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-from IPython import embed
-from sc2.data import Result
 from sc2.ids.ability_id import AbilityId
-from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
-from sc2.player import Bot as _Bot
+from sc2.ids.buff_id import BuffId
+
 from sc2.position import Point2
-from termcolor import colored, cprint
-from sc2.position import Point2, Point3
-from enum import Enum
-from random import *
 
 
-nest_asyncio.apply()
 class Bot(sc2.BotAI):
     """
-    아무것도 하지 않는 봇 예제
+    해병 5, 의료선 1 빌드오더를 계속 실행하는 봇
+    해병은 적 사령부와 유닛중 가까운 목표를 향해 각자 이동
+    적 유닛또는 사령부까지 거리가 15미만이 될 경우 스팀팩 사용
+    스팀팩은 체력이 50% 이상일 때만 사용가능
+    의료선은 가장 가까운 체력이 100% 미만인 해병을 치료함
     """
     def __init__(self, *args, **kwargs):
         super().__init__()
-        """if self.enemy_start_locations[0].x == 95.5:
-            self.patrol_pos = [point2((32.5, 35)), point2((37.5, 30)), point2((32.5, 25)), point2((27.5, 30))]
-        else :
-            self.patrol_pos = [point2((95.5, 35)), point2((105.5, 30)), point2((95.5, 25)), point2((90.5, 30))]
-        self.a=0"""
+
+        self.build_order = list() # 생산할 유닛 목록
+
 
     def on_start(self):
-        
-        self.cc = self.units(UnitTypeId.COMMANDCENTER).first  # 전체 유닛에서 사령부 검색
-
-    async def on_step(self, iteration: int):
         """
-        :param int iteration: 이번이 몇 번째 스텝인지를 인자로 넘겨 줌
-
-        매 스텝마다 호출되는 함수
-        주요 AI 로직은 여기에 구현
+        새로운 게임마다 초기화
         """
+        self.build_order = list()
+        self.evoked = dict()
+        self.pos=0
+        self.i=0
+        if self.start_location.x < 40:
+            self.i=1
+
+    async def on_step(self, iteration: int):       
         actions = list()
-        """
-        if self.a ==0 and self.can_afford(next_unit) and self.time - self.evoked.get((self.bot.cc.tag, 'train'), 0) > 1.0:
-                #print("00000마지막 명령을 발행한지 1초 이상 지났음")
-                self.a=1
-                actions.append(self.cc.train(UnitTypeId.RAVEN))
-
-        for unit in self.units:
-            actions.append(unit.patrol(patrol_pos[0],patrol_pos[1],patrol_pos[2],patrol_pos[3])
+        #
+        # 빌드 오더 생성
+        # 
         
+        if len(self.build_order) == 0:
+            for _ in range(5):
+                self.build_order.append(UnitTypeId.MARINE)
+            self.build_order.append(UnitTypeId.MEDIVAC)
+        
+        
+        ccs = self.units(UnitTypeId.COMMANDCENTER)  # 전체 유닛에서 사령부 검색
+        cc = ccs.idle
+        if cc.exists:
+            cc = cc.first # 실행중인 명령이 없는 사령부 검색
+            cc_abilities = await self.get_available_abilities(cc)
+            
+            ghosts = self.units(UnitTypeId.GHOST)  # 해병 검색
+            if ghosts.amount == 0:
+                actions.append(cc.train(UnitTypeId.GHOST))
+            else :
 
-        # 유닛들이 수행할 액션은 리스트 형태로 만들어서,
-        # do_actions 함수에 인자로 전달하면 게임에서 실행된다.
-        # do_action 보다, do_actions로 여러 액션을 동시에 전달하는 
-        # 것이 훨씬 빠르다."""
-        #cc_abilities = await self.get_available_abilities(self.cc)
-        #print("-------------")
-        #print("핵생산가능?: ", AbilityId.BUILD_NUKE in cc_abilities)
+                if AbilityId.BUILD_NUKE in cc_abilities:
+                    actions.append(cc(AbilityId.BUILD_NUKE))
+                    if self.i: 
+                        print("핵생산")
+                ghost = ghosts.first
+                ghost_abilities = await self.get_available_abilities(ghost)
+                if self.pos ==0:
+                    actions.append(ghost.move(Point2((60,30))))
+                    self.pos =2
+
+                threaten = self.known_enemy_units.closer_than(15, ghost.position)
+                
+                # 적 사령부와 가장 가까운 적 유닛중 더 가까운 것을 목표로 공격 명령 생성
+                if threaten.amount > 0:
+                    target = threaten.closest_to(ghost)
+                    if self.i:
+                        print(target)
+                    actions.append(ghost(AbilityId.BEHAVIOR_CLOAKON_GHOST))
+                    if ghost.distance_to(target.position) < 9:
+                        if self.i:
+                            print("얼마나 멀어져있니?",ghost.distance_to(target))
+                        distance = ghost.position.x - target.position.x
+                        
+                    if AbilityId.TACNUKESTRIKE_NUKECALLDOWN in ghost_abilities : 
+                        if self.i : 
+                            print("핵쏘래")
+                        actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=target.position))
+                elif AbilityId.TACNUKESTRIKE_NUKECALLDOWN in ghost_abilities : 
+                    if self.i: 
+                        print("누크에 쏘래")
+                    actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=self.enemy_start_locations[0]))
+                
+                if self.i==0 and threaten(UnitTypeId.NUKE).amount > 0:
+                    print("빨간팀 핵 : ",threaten(UnitTypeId.NUKE).amount)
+                    print("빨간팀 핵 : ",threaten(UnitTypeId.NUKE).first.position)
+                elif self.i==1 and self.units(UnitTypeId.NUKE).amount > 0:
+                    print("우리팀 핵 : ",self.units(UnitTypeId.NUKE).amount)
+                    print("우리팀 핵 : ",self.units(UnitTypeId.NUKE).first.position)
         await self.do_actions(actions)
+
+
 
