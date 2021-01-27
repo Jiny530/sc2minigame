@@ -182,9 +182,10 @@ class NukeManager(object):
                     self.bot.is_raven = 1
                     self.pos = 0
                     self.is_nuke = 0
-                    acction.append(ghost.move(self.start_location))
+                    self.bot.ghost_ready = False
+                    actions.append(ghost.move(self.bot.start_location))
                 # 위 or 아래로 가고있는 와중, 고스트 혼자가 아닐땐 공격명령
-                if self.bot.nuke_strategy == 2:
+                elif self.bot.nuke_strategy == 2:
                     actions.append(ghosts.first(AbilityId.BEHAVIOR_CLOAKON_GHOST))
                     # 적이 10명보다 많으면 핵 준비
                     if threaten.amount > 10 :
@@ -242,7 +243,10 @@ class NukeManager(object):
                 actions.append(ghost.move(self.bot.combat_units.center))
                 self.pos = 0
                 self.is_nuke = 0
+                self.ghost_ready = False
 
+            if ghost.distance_to(self.bot.start_location) < self.bot.combat_units.center.distance_to(self.bot.start_location):
+                actions.append(ghost(AbilityId.BEHAVIOR_CLOAKOFF_GHOST))
 
         elif ghosts.amount==0 and self.dead==3 : #고스트 죽음 (amount==0)
             self.pos=0
@@ -798,10 +802,10 @@ class AssignManager(object): #뜯어고쳐야함
         self.bot.nukeArray = self.bot.nukeArray & units_tag
 
         tank_tag = self.bot.units(UnitTypeId.SIEGETANKSIEGED).tags | self.bot.units(UnitTypeId.SIEGETANK).tags
-
+        j = 0
         for tag in self.bot.tankArray:
             i = 1
-            j = 0
+            
             for tag1 in tank_tag:
                 if tag == tag1:
                     i = 0
@@ -827,18 +831,22 @@ class AssignManager(object): #뜯어고쳐야함
             elif unit.type_id in (UnitTypeId.SIEGETANKSIEGED,  UnitTypeId.SIEGETANK): #탱크(변신)는 컴뱃
                 self.bot.combatArray.add(unit.tag)
                 j = 1
+                i = 0
                 for tag in self.bot.tankArray:
-                    i = 0
                     if tag == None:
                         self.bot.tankArray[i] = unit.tag
                         j = 0
+                        break
                     i += 1
+
                 if j: 
                     self.bot.tankArray.append(unit.tag)
             elif unit.type_id is UnitTypeId.MARINE: #마린도 컴뱃으로
                 self.bot.combatArray.add(unit.tag)
 
 
+        if self.bot.start_location.x < 40:
+            print(self.bot.tankArray)
         
 
 
@@ -1008,7 +1016,7 @@ class Bot(sc2.BotAI):
         self.nuke_alert = False
         self.nuke_time = 0
 
-        self.is_nuke = 0
+        self.is_raven = 0
         
     def on_start(self):
         """
@@ -1130,6 +1138,7 @@ class Bot(sc2.BotAI):
         # 이미 핵이 있으면 생산X
         if self.units(UnitTypeId.NUKE).amount > 0 and self.ghost_ready:
             self.ghost_ready = False
+
         if self.ghost_ready:
             if AbilityId.BUILD_NUKE in cc_abilities:
                 # 전술핵 생산 가능(자원이 충분)하면 전술핵 생산
