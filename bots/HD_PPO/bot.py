@@ -1101,7 +1101,7 @@ class Bot(sc2.BotAI):
         #self.assign_manager.reassign() #이상하게 배치된 경우 있으면 제배치
         #self.last_step_time = self.time
         
-        print("------------------")
+        #print("------------------")
 
         #생산 명령이 처리되었다면
         if self.productIng == 0: 
