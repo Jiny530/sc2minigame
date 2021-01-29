@@ -2,12 +2,12 @@
 __author__ = '박현수 (hspark8312@ncsoft.com), NCSOFT Game AI Lab'
 
 import time
-
+from sc2.data import Alert
 import sc2
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.buff_id import BuffId
-
+from sc2.game_state import *
 from sc2.position import Point2
 
 
@@ -42,32 +42,48 @@ class Bot(sc2.BotAI):
         # 빌드 오더 생성
         # 
         
-        if len(self.build_order) == 0:
-            for _ in range(5):
-                self.build_order.append(UnitTypeId.MARINE)
-            self.build_order.append(UnitTypeId.MEDIVAC)
         
-        
+
         ccs = self.units(UnitTypeId.COMMANDCENTER)  # 전체 유닛에서 사령부 검색
         cc = ccs.idle
+
+        if self.alert(Alert.NuclearLaunchDetected):
+            print("핵온다")
         if cc.exists:
             cc = cc.first # 실행중인 명령이 없는 사령부 검색
             cc_abilities = await self.get_available_abilities(cc)
-            
+
+            marines = self.units(UnitTypeId.MARINE)
+            if marines.exists:
+
+                actions.append(marines.first.move(Point2((self.start_location.x - 5, self.start_location.y))))
+
+                threaten = self.known_enemy_units.closer_than(15,marines.first.position)
+
+            else:
+                actions.append(cc.train(UnitTypeId.MARINE))
+
+
+            '''
             ghosts = self.units(UnitTypeId.GHOST)  # 해병 검색
             if ghosts.amount == 0:
                 actions.append(cc.train(UnitTypeId.GHOST))
             else :
-                
-                
+                    
+                    
                 if AbilityId.BUILD_NUKE in cc_abilities:
                     actions.append(cc(AbilityId.BUILD_NUKE))
-                    if self.i: 
-                        print("핵생산")
                 ghost = ghosts.first
                 ghost_abilities = await self.get_available_abilities(ghost)
-                print(ghost_abilities)
-                '''
+                if AbilityId.BEHAVIOR_CLOAKON_GHOST in ghost_abilities : 
+                    actions.append(ghost(AbilityId.BEHAVIOR_CLOAKON_GHOST))
+                if AbilityId.TACNUKESTRIKE_NUKECALLDOWN in ghost_abilities : 
+                    actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=self.enemy_start_locations[0]))
+                    
+                if self.units(UnitTypeId.NUKE).exists:
+                    print("고스트 : ",ghost.position)
+                    print("에너미 : ",self.bot.enemy_start_locations[0])
+                
                 if self.pos ==0:
                     actions.append(ghost.move(Point2((60,30))))
                     self.pos =2
