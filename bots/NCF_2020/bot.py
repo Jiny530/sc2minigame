@@ -718,7 +718,7 @@ class CombatManager(object):
         elif self.move_check ==4 and self.bot.tank_units.amount <= 7:
             self.move_check_action(self.move_check-1) 
          
-        elif self.bot.combat_units.amount <= 3 and self.move_check >= 1: #인원 대폭 줄었으면 초기 위치로
+        elif self.bot.tank_units.amount <= 1 and self.move_check >= 1: #인원 대폭 줄었으면 초기 위치로
             self.move_check_action(0)
         
 
@@ -770,11 +770,6 @@ class CombatManager(object):
                 if self.bot.known_enemy_units.exists:
                     enemy_unit = self.bot.known_enemy_units.closest_to(unit)  # 가장 가까운 적 유닛
 
-                # 유령이나 밴시 있으면 그거 먼저 치기, 근데 사령부 주변에서 발견됐을때 갈수도 있으니 나중에 조정
-                if self.bot.known_enemy_units(UnitTypeId.GHOST).exists:
-                    enemy_unit = self.bot.known_enemy_units(UnitTypeId.GHOST).closest_to(unit)
-                elif self.bot.known_enemy_units(UnitTypeId.BANSHEE).exists:
-                    enemy_unit = self.bot.known_enemy_units(UnitTypeId.BANSHEE).closest_to(unit)
 
                 # 적 사령부와 가장 가까운 적 유닛중 더 가까운 것을 목표로 설정
                 if unit.distance_to(enemy_cc) < unit.distance_to(enemy_unit):
@@ -1137,7 +1132,7 @@ class Bot(sc2.BotAI):
         self.step_interval = self.step_interval
         self.last_step_time = -self.step_interval
 
-        self.nuke_strategy = 0 #0,1,2,3
+        self.nuke_strategy = 2 #0,1,2,3
         self.evoked = dict() #생산명령 시간 체크
 
         self.cc = self.units(UnitTypeId.COMMANDCENTER).first  # 전체 유닛에서 사령부 검색
