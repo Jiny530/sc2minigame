@@ -658,6 +658,7 @@ class CombatManager(object):
     async def step(self):
         #region Description
         actions = list()
+        
 
         enemy_cc = self.bot.enemy_cc  # 적 시작 위치
         cc_abilities = await self.bot.get_available_abilities(self.bot.cc)
