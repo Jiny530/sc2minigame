@@ -42,6 +42,41 @@ class Bot(sc2.BotAI):
         #
         # 사령부 명령 생성
         #
+        '''
+        ccs = self.units(UnitTypeId.COMMANDCENTER)  # 전체 유닛에서 사령부 검색
+        cc = ccs.idle
+        if cc.exists:
+            cc = cc.first # 실행중인 명령이 없는 사령부 검색
+            cc_abilities = await self.get_available_abilities(cc)
+            '''
+            marines = self.units(UnitTypeId.MARINE)
+            if marines.exists:
+
+                actions.append(marines.first.move(Point2((self.start_location.x - 5, self.start_location.y))))
+
+                threaten = self.known_enemy_units.closer_than(15,marines.first.position)
+
+                if threaten.exists:
+                    #print(threaten.first.position)
+            else:
+                actions.append(cc.train(UnitTypeId.MARINE))
+
+
+            '''
+            ghosts = self.units(UnitTypeId.GHOST)  # 해병 검색
+            if ghosts.amount == 0:
+                actions.append(cc.train(UnitTypeId.GHOST))
+            else :
+                if AbilityId.BUILD_NUKE in cc_abilities:
+                    actions.append(cc(AbilityId.BUILD_NUKE))
+                ghost = ghosts.first
+                ghost_abilities = await self.get_available_abilities(ghost)
+                if AbilityId.BEHAVIOR_CLOAKON_GHOST in ghost_abilities : 
+                    actions.append(ghost(AbilityId.BEHAVIOR_CLOAKON_GHOST))
+                if AbilityId.TACNUKESTRIKE_NUKECALLDOWN in ghost_abilities : 
+                    actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=self.enemy_start_locations[0]))
+                    print("핵쏜다")
+                    '''
         ccs = self.units(UnitTypeId.COMMANDCENTER)  # 전체 유닛에서 사령부 검색
         ccs = ccs.idle  # 실행중인 명령이 없는 사령부 검색
         if ccs.exists:  # 사령부가 하나이상 존재할 경우
