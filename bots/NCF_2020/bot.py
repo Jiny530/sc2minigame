@@ -1098,7 +1098,7 @@ class Bot(sc2.BotAI):
         self.tankArray = list()
 
         self.nuke_reward = 0 
-        self.nuke_strategy= 0
+        self.nuke_strategy= 2
         self.combat_strategy = 0
 
         # 정찰부대에서 사용하는 플래그
