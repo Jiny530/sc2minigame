@@ -431,10 +431,11 @@ class ReconManager(object):
         cc_abilities = await self.bot.get_available_abilities(cc)
         ravens = self.bot.units(UnitTypeId.RAVEN)
 
-        if not ravens.exists and self.bot.nuke_alert and self.bot.command_nuke and self.bot.vespene >= 150 and self.bot.time - self.bot.nuke_time < 10:
+        if not ravens.exists and self.bot.vespene >= 150:
+            if (self.bot.nuke_alert and self.bot.command_nuke and self.bot.time - self.bot.nuke_time < 10) or (self.bot.cloak_units.amount > 0):
             # 시간넉넉하면 밤까마귀 생성해서 막기
             # train_action에서 플래그 보고 자원 아껴야함
-            actions.append(cc.train(UnitTypeId.RAVEN))
+                actions.append(cc.train(UnitTypeId.RAVEN))
         '''
         if ravens.amount == 0 and self.bot.combat_units.amount > 10:
             if self.bot.can_afford(UnitTypeId.RAVEN):
@@ -626,7 +627,7 @@ class CombatManager(object):
         """
         핵과의 거리가 가까우면 도망(또는 멈춰있음?)
         """
-        distance = unit.position.x - self.bot.nuke_position.x
+        distance = unit.position.x - self.bot.nuke_pos.x
         if distance > 0:
             distance = 10 + distance
         else:
@@ -752,9 +753,46 @@ class CombatManager(object):
             if unit in self.bot.combat_units:
                 ##-----타겟 설정-----
                 enemy_unit = self.bot.enemy_cc
-                if self.bot.known_enemy_units.exists:
-                    enemy_unit = self.bot.known_enemy_units.closest_to(unit)  # 가장 가까운 적 유닛
 
+                #공중 공격 가능이면 공중 우선 타겟팅(고스트 최우선-핵방어)
+                if unit.type_id in (UnitTypeId.BATTLECRUISER, UnitTypeId.VIKINGFIGHTER, UnitTypeId.MARINE):
+                    threaten = self.bot.known_enemy_units.closer_than(10, unit.position) 
+                    enemy_ghost = threaten(UnitTypeId.GHOST)
+                    enemy_raven = threaten(UnitTypeId.RAVEN)
+                    enemy_bansee = threaten(UnitTypeId.BANSHEE)
+                    flying_target = threaten.filter(
+                        lambda unit:  unit.is_flying
+                    )
+                    flying_buff = flying_target.filter(
+                        lambda unit:  unit.has_buff(BuffId.RAVENANTIARMORMISSILEARMORREDUCTION)
+                    )
+                    ##-----타겟 조정-----
+                    if threaten.exists :
+                        if enemy_ghost.exists:
+                            enemy_unit = enemy_ghost.closest_to(unit.position)
+                        elif enemy_bansee.exists:
+                            enemy_unit = enemy_bansee.closest_to(unit.position)
+                        elif enemy_raven.exists:
+                            enemy_unit = enemy_raven.closest_to(unit.position)
+                        elif flying_buff.exists:
+                            enemy_unit = flying_buff.closest_to(unit)
+                        elif flying_target.exists:
+                            enemy_unit = flying_target.closest_to(unit)
+                        else:
+                            enemy_unit = threaten.closest_to(unit.position)
+                
+                #지상만 공격 가능이면 공중은 타겟팅 안함
+                if unit.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED, UnitTypeId.VIKINGASSAULT):
+                    if self.bot.known_enemy_units.exists:
+                        enemy_unit = self.bot.known_enemy_units.closest_to(unit)  # 가장 가까운 적 유닛
+                        walking_target = self.bot.known_enemy_units.filter(
+                            lambda u: not u.is_flying
+                        )
+                        enemy_ghost = walking_target(UnitTypeId.GHOST)
+                        if enemy_ghost.exists:
+                            enemy_unit = enemy_ghost.closest_to(unit.position)
+                        else:
+                            enemy_unit = walking_target.closest_to(unit)
 
                 # 적 사령부와 가장 가까운 적 유닛중 더 가까운 것을 목표로 설정
                 if unit.distance_to(enemy_cc) < unit.distance_to(enemy_unit):
@@ -764,42 +802,19 @@ class CombatManager(object):
 
                 ##-----MARINE-----
                 if unit.type_id is UnitTypeId.MARINE:
-                    threaten = self.bot.known_enemy_units.closer_than(10, unit.position) 
-                    enemy_ghost = threaten(UnitTypeId.GHOST)
-                    enemy_raven = threaten(UnitTypeId.RAVEN)
-                    flying_target = threaten.filter(
-                        lambda unit:  unit.is_flying
-                    )
-                    '''
-                    flying_buff = flying_target.filter(
-                        lambda unit:  unit.has_buff(BuffId.RAVENANTIARMORMISSILEARMORREDUCTION)
-                    )'''
-                    
-                    ##-----타겟 조정-----
-                    if threaten.exists :
-                        if enemy_ghost.exists:
-                            target = enemy_ghost.closest_to(unit.position)
-                        elif enemy_raven.exists:
-                            target = enemy_raven.closest_to(unit.position)
-                        #elif flying_buff.exists:
-                           # target = flying_buff.closest_to(unit)
-                        elif flying_target.exists:
-                            target = flying_target.closest_to(unit)
-                        else:
-                            target = threaten.closest_to(unit.position)
      
                     if self.marine_call == 1:
                         self.target_pos = self.marine_center[self.move_check]
 
                     ##-----명령-----
-                    if unit.distance_to(self.bot.nuke_position) < 9: #근처에 핵 발견했으면 뒤로 가라
+                    if unit.distance_to(self.bot.nuke_pos) < 11: #근처에 핵 발견했으면 뒤로 가라
                         self.nuke_action(unit, actions)
                     elif self.bot.is_ghost > 0: # 고스트, 벤시 있으면 걔네 먼저 공격
                         actions.append(unit.attack(target))
                     else:
                         actions.append(unit.attack(self.target_pos))
-                    if self.distance(unit.position, self.target_pos) < 4:
-                        actions.append(unit.attack(target))
+                    #if self.distance(unit.position, self.target_pos) < 4:
+                        #actions.append(unit.attack(target))
 
                     ##-----스킬-----
                     if unit.distance_to(target) < 15 and threaten.amount > 5:
@@ -815,7 +830,7 @@ class CombatManager(object):
                 ##-----TANK-----
                 if unit.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
                     #근처에 핵 발견했으면 뒤로 가라
-                    if unit.distance_to(self.bot.nuke_position) < 9:
+                    if unit.distance_to(self.bot.nuke_pos) < 11:
                         self.nuke_action(unit, actions)
                     else:
                         self.moving(unit, actions, target)
@@ -1116,8 +1131,6 @@ class Bot(sc2.BotAI):
         else: #red
             self.enemy_cc = Point2(Point2((95.5,31.5)))
 
-        self.nuke_position =  self.enemy_cc #핵 목표 위치
-
         self.step_interval = self.step_interval
         self.last_step_time = -self.step_interval
 
@@ -1167,26 +1180,11 @@ class Bot(sc2.BotAI):
         '''
         #self.assign_manager.reassign() #이상하게 배치된 경우 있으면 제배치
         #self.last_step_time = self.time
-        
-        actions += await self.train_action() #생산
-        '''
-        #여기 이제 빼도 됨
-        #생산 명령이 처리되었다면
-        if self.productIng == 0: 
-            #생산
-            actions += await self.train_action() #생산
-            #if self.start_location.x<40:
-                #print(actions)
-            self.productIng = 1 #생산명령 들어갔다고 바꿔줌
 
-        #생산 명령이 들어갔다면
-        elif self.productIng == 1:
-            #배치
-            self.assign_manager.assign()
-            self.productIng = 0 #생산명령 수행했다고 바꿔줌 '''
-
-        #밤까마귀는 train action에서 담당하지 않아서 밤까마귀가 없으면 배치가 안됨
-        #따라서 그냥 한번 더 해줌... 수정 필요
+        self.cloak_units = self.known_enemy_units.filter(
+            lambda u: u.type_id in (UnitTypeId.BANSHEE, UnitTypeId.GHOST) and u.cloak == 1
+        ) #적 은폐 유닛 탐지
+      
         self.nuke_alert = False
         self.is_nuke=1
         for effect in self.state.effects:
@@ -1199,14 +1197,10 @@ class Bot(sc2.BotAI):
                     self.nuketime_flag = 1
                     self.nuke_time = self.time
                 #사령부 주변에 핵 잡히면 밤까마귀가 처치하도록
-                if self.units(UnitTypeId.COMMANDCENTER).exists and  self.units(UnitTypeId.COMMANDCENTER).first.distance_to(self.nuke_pos) < 8:
+                if self.units(UnitTypeId.COMMANDCENTER).exists and self.units(UnitTypeId.COMMANDCENTER).first.distance_to(self.nuke_pos) < 8:
                     self.command_nuke = True
                 else:
                     self.command_nuke = False
-
-            else:
-                self.nuke_alert = False
-                self.command_nuke = False
 
         if self.nuke_alert and self.nuketime_flag == 1:
             self.nuketime_flag = 2
@@ -1216,8 +1210,7 @@ class Bot(sc2.BotAI):
             self.command_nuke = False
             self.nuketime_flag = 0
 
-
-
+        actions += await self.train_action() #생산
         self.assign_manager.assign()
 
         #-----유닛츠 배치-----
@@ -1233,6 +1226,7 @@ class Bot(sc2.BotAI):
         actions += await self.recon_manager.step() 
         actions += await self.combat_manager.step()   
         actions += await self.nuke_manager.step()
+        self.assign_manager.assign()
         
         ## -----명령 실행-----
         await self.do_actions(actions)
