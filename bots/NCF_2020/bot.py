@@ -783,9 +783,9 @@ class CombatManager(object):
                     flying_target = threaten.filter(
                         lambda unit:  unit.is_flying
                     )
-                    flying_buff = flying_target.filter(
+                    '''flying_buff = flying_target.filter(
                         lambda unit:  unit.has_buff(BuffId.RAVENANTIARMORMISSILEARMORREDUCTION)
-                    )
+                    )'''
                     ##-----타겟 조정-----
                     if threaten.exists :
                         if enemy_ghost.exists:
@@ -794,8 +794,8 @@ class CombatManager(object):
                             enemy_unit = enemy_bansee.closest_to(unit.position)
                         elif enemy_raven.exists:
                             enemy_unit = enemy_raven.closest_to(unit.position)
-                        elif flying_buff.exists:
-                            enemy_unit = flying_buff.closest_to(unit)
+                            '''elif flying_buff.exists:
+                            enemy_unit = flying_buff.closest_to(unit)'''
                         elif flying_target.exists:
                             enemy_unit = flying_target.closest_to(unit)
                         else:
@@ -1287,6 +1287,7 @@ class Bot(sc2.BotAI):
                 self.ghost_ready = True # 핵 항상 생산 
             # 전술핵 생산 가능(자원이 충분)하면 전술핵 생산
             elif self.ghost_ready and AbilityId.BUILD_NUKE in cc_abilities and self.units(UnitTypeId.GHOST).exists:
+
                 actions.append(self.cc(AbilityId.BUILD_NUKE))
                 next_unit = None
                 self.ghost_ready = False 
