@@ -51,7 +51,6 @@ class Model(nn.Module):
         #self.combat_head = nn.Linear(64, len(CombatStrategy))
         self.nuke_head = nn.Linear(64, len(NukeStrategy))
         #self.mule_head = nn.Linear(64, len(MuleStrategy))
-
     def forward(self, x):
         x = F.relu(self.norm1(self.fc1(x)))
         x = F.relu(self.norm2(self.fc2(x)))
@@ -403,6 +402,7 @@ class ReconManager(object):
                 if raven.distance_to(self.patrol_pos[3]) < 1:
                     actions.append(raven.move(self.patrol_pos[0]))
                     self.a=0
+                    
 
     async def setAutoturret(self,unit,target,actions,ab):
         if unit.distance_to(target.position) > 5:
@@ -724,7 +724,7 @@ class CombatManager(object):
         elif self.move_check ==4 and self.bot.tank_units.amount <= 7:
             self.move_check_action(self.move_check-1) 
          
-        elif self.bot.tank_units.amount <= 1 and self.move_check >= 1: #인원 대폭 줄었으면 초기 위치로
+        elif (self.bot.tank_units.amount <= 1 or self.bot.combat_units.amount < 5) and self.move_check >= 1: #인원 대폭 줄었으면 초기 위치로
             self.move_check_action(0)
     
 
@@ -837,7 +837,7 @@ class CombatManager(object):
                         #actions.append(unit.attack(target))
 
                     ##-----스킬-----
-                    if unit.distance_to(target) < 15 and threaten.amount > 5:
+                    if not unit.has_buff(BuffId.STIMPACK) and unit.distance_to(target) < 15 and threaten.amount > 5:
                             # 유닛과 목표의 거리가 15이하일 경우 스팀팩 사용
                             # '''not unit.has_buff(BuffId.STIMPACK) and''' 여기 주석했음
                         if unit.health_percentage > 0.5:
@@ -913,7 +913,6 @@ class AssignManager(object): #뜯어고쳐야함
     *reconArray: recon에 들어가는 해병만 있음
     *nukeArray: 고스트만 있음
     *combatArray: combat의 해병, 탱크, 밤까마귀 있음
-
     *combat_units: combat의 해병, 탱크만 있음(combatArray보다 작은 개념)
     *nuke_units: 고스트만 있음=nukeArray
     """
@@ -1006,13 +1005,11 @@ class AssignManager(object): #뜯어고쳐야함
                         if len(self.bot.reconArray) <=5: #5명 이내인가?
                             self.bot.reconArray.add(unit.tag) #그럼 레콘으로 이동
                             break"""
-
             elif self.bot.have_to_go == 2: #전체가 와라
                 for tag in self.bot.combatArray:
                     self.bot.reconArray.add(tag) #combat의 전부를 recon으로
                     #print("이동완료2", len(self.bot.reconArray), "/", len(self.bot.combatArray)) 
                 self.bot.combatArray.clear() #그리고 combat 전체삭제
-
             #-----nuke-----
             #고스트가 새로 생성되어야하고 + 일단 윗길 아랫길만 해둠
             if self.bot.units(UnitTypeId.GHOST).amount == 0 and self.bot.nuke_strategy<=1:
@@ -1114,7 +1111,7 @@ class Bot(sc2.BotAI):
         self.tankArray = list()
 
         self.nuke_reward = 0 
-        self.nuke_strategy= 0
+        self.nuke_strategy= 2
         self.combat_strategy = 0
 
         # 정찰부대에서 사용하는 플래그
@@ -1150,6 +1147,8 @@ class Bot(sc2.BotAI):
             self.enemy_cc = Point2(Point2((32.5,31.5)))
         else: #red
             self.enemy_cc = Point2(Point2((95.5,31.5)))
+
+        self.nuke_position =  self.enemy_cc #핵 목표 위치
 
         self.step_interval = self.step_interval
         self.last_step_time = -self.step_interval
@@ -1293,15 +1292,19 @@ class Bot(sc2.BotAI):
                 next_unit = None
                 self.ghost_ready = False 
             elif self.nuke_alert and not self.units(UnitTypeId.RAVEN).exists and self.vespene <= 200 :
+                print("밤까마귀 존버")
                 next_unit = None
                 pass # 탱크 또는 전투순양함 존버?
-            elif self.vespene > 100 and len(self.combatArray) <=7:
+            elif self.vespene > 100 and self.tank_units.amount < 8:
+                print("탱크")
                 next_unit = UnitTypeId.SIEGETANK
             #elif self.vespene > 200 and len(self.combatArray) > 7:
             elif self.time < 200 and self.minerals >= 200:
+                print("마린")
                 next_unit = UnitTypeId.MARINE
             else:
-                next_unit = UnitTypeId.MARINE
+                print("어디에도 안걸림")
+                next_unit = None
 
         
         if next_unit != None and self.can_afford(next_unit) and self.time - self.evoked.get((self.cc.tag, 'train'), 0) > 1.0:
@@ -1310,7 +1313,7 @@ class Bot(sc2.BotAI):
 
         return actions
 
-
+    '''
     def set_strategy(self):
         #
         # 특징 추출
@@ -1346,7 +1349,7 @@ class Bot(sc2.BotAI):
         # product_strategy = ProductStrategy.to_type_id(action // (len(NukeStrategy)*len(mule_strategy)))
         # nuke_strategy = NukeStrategy(action // len(NukeStrategy))
         # mule_strategy = MuleStrategy(action % len(MuleStrategy))
-        return nuke_strategy.value
+        return nuke_strategy.value'''
 
     '''
     def on_end(self, game_result):
