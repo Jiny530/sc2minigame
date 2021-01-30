@@ -109,13 +109,10 @@ class NukeManager(object):
         
         # 2분뒤에 생성
 
-        if ghosts.amount == 0 and self.bot.die_count < 2 :
-            if self.bot.start_location.x > 40 :
-                actions.append(cc.train(UnitTypeId.GHOST))
-                self.bot.ghost_ready = True # 핵 항상 생산
-            elif self.bot.time >= 200:
-                actions.append(cc.train(UnitTypeId.GHOST))
-                self.bot.ghost_ready = True # 핵 항상 생산
+        #if ghosts.amount == 0 and self.bot.die_count < 2 :
+            #if self.bot.time >= 200:
+                #actions.append(cc.train(UnitTypeId.GHOST))
+                #self.bot.ghost_ready = True # 핵 항상 생산
 
         if ghosts.amount > 0:
 
@@ -250,7 +247,7 @@ class NukeManager(object):
                                 if ghost.distance_to(threaten.center) < 10:
                                     distance = ghost.position.x - threaten.center.x
                                     if distance > 0:
-                                        distance = 12 + distance
+                                        distance = 12 - distance
                                     else:
                                         distance = -12 - distance 
                                     actions.append(ghost.move(Point2((ghost.position.x + distance, ghost.position.y))))
@@ -407,7 +404,7 @@ class ReconManager(object):
                     actions.append(raven.move(self.patrol_pos[0]))
                     self.a=0
 
-    async def nuke_detection(self,unit,target,actions,ab):
+    async def setAutoturret(self,unit,target,actions,ab):
         if unit.distance_to(target.position) > 5:
             dis = unit.distance_to(target.position) - 5
         else:
@@ -431,11 +428,11 @@ class ReconManager(object):
         cc_abilities = await self.bot.get_available_abilities(cc)
         ravens = self.bot.units(UnitTypeId.RAVEN)
 
-        if not ravens.exists and self.bot.vespene >= 150:
-            if (self.bot.nuke_alert and self.bot.command_nuke and self.bot.time - self.bot.nuke_time < 10) or (self.bot.cloak_units.amount > 0):
+        #if not ravens.exists :
+            #if (self.bot.nuke_alert and self.bot.command_nuke and self.bot.time - self.bot.nuke_time < 10) or (self.bot.cloak_units.amount > 0):
             # 시간넉넉하면 밤까마귀 생성해서 막기
             # train_action에서 플래그 보고 자원 아껴야함
-                actions.append(cc.train(UnitTypeId.RAVEN))
+                #actions.append(cc.train(UnitTypeId.RAVEN))
         '''
         if ravens.amount == 0 and self.bot.combat_units.amount > 10:
             if self.bot.can_afford(UnitTypeId.RAVEN):
@@ -445,7 +442,10 @@ class ReconManager(object):
         if ravens.amount > 0:
             raven = ravens.first            
             
-            threaten = self.bot.known_enemy_units.closer_than(15, raven.position) 
+            threaten = self.bot.known_enemy_units.closer_than(15, raven.position)
+            cloak_units = threaten.filter(
+                lambda unit: unit.type_id is UnitTypeId.GHOST or unit.type_id is UnitTypeId.BANSHEE
+            )
             enemy_ghost = threaten(UnitTypeId.GHOST)
             enemy_banshee = threaten(UnitTypeId.BANSHEE)
 
@@ -467,7 +467,7 @@ class ReconManager(object):
                             )
                             
                             if target.exists: # 타겟이 범위안에 있으면 오토터렛 범위에 따라 던지기
-                                await self.nuke_detection(unit,target.closest_to(unit),actions,unit_abilities)
+                                await self.setAutoturret(unit,target.closest_to(unit),actions,unit_abilities)
                             else: #타겟이 범위 안에 없으면 찾기
                                 self.patrol(self.bot.nuke_pos,None)
                                 if enemy_ghost.exists:
@@ -475,7 +475,7 @@ class ReconManager(object):
                                         lambda u: u.distance_to(self.bot.nuke_pos) < 12
                                     )
                                     if target.exists:
-                                        await self.nuke_detection(unit,target.closest_to(unit),actions,unit_abilities)
+                                        await self.setAutoturret(unit,target.closest_to(unit),actions,unit_abilities)
                                     else: # 유령은 있는데 핵은 아직 안쐈다?
                                         pass
                                 else:        
@@ -487,14 +487,13 @@ class ReconManager(object):
                                 lambda u: u.type_id is UnitTypeId.GHOST and u.distance_to(self.bot.nuke_pos) < 12
                             )
                             if target.exists:
-                                await self.nuke_detection(unit,target.closest_to(unit),actions,unit_abilities)
+                                await self.setAutoturret(unit,target.closest_to(unit),actions,unit_abilities)
                             else :
                                 self.patrol(self.bot.nuke_pos,None)
                                 self.recon(unit,actions)
 
                 elif self.bot.combat_units.exists :
                     combat_center = self.bot.units.tags_in(self.bot.combatArray).center
-                    unit_abilities = await self.bot.get_available_abilities(unit)
 
                     # 밤까마귀를 공격할 수 있는 유닛
                     flying_threaten = threaten.filter(
@@ -518,7 +517,25 @@ class ReconManager(object):
                             actions.append(unit(AbilityId.EFFECT_ANTIARMORMISSILE, mechanic(UnitTypeId.BATTLECRUISER).closest_to(unit)))
                         else:
                             actions.append(unit(AbilityId.EFFECT_ANTIARMORMISSILE, mechanic.closest_to(unit)))
+                    
+                    if self.bot.cloak_units.exists:
+                        cloak = self.bot.cloak_units.closer_than(15,unit)
+                        if cloak.exists:
+                            cloak = cloak.closest_to(unit)
+                            if unit.distance_to(cloak) > 11:
+                                distance = unit.position.x - cloak.position.x
+                                if distance > 0 :
+                                    distance = distance - 11
+                                else:
+                                    distance = distance + 11
+                                actions.append(unit.move(Point2((unit.position.x - distance,unit.position.y))))
 
+                elif self.bot.cloak_units.exists:
+                        cloak = self.bot.cloak_units.closer_than(15,unit)
+                        if cloak.exists:
+                            cloak = cloak.closest_to(unit)
+                            if unit.energy > 45:
+                                await self.setAutoturret(unit,cloak,actions,unit_abilities)
             
         return actions
 
@@ -592,6 +609,9 @@ class CombatManager(object):
         전차의 이동과 변신 담당
         """
         t=0
+        #print(len(self.bot.tankArray))
+        #print("위치:",self.position_list[t])
+        
         for tank in self.bot.tankArray: #이동
             if unit.tag == tank:
                 if self.distance(unit.position, self.position_list[t]) < 1: #지정위치도착
@@ -629,7 +649,7 @@ class CombatManager(object):
         """
         distance = unit.position.x - self.bot.nuke_pos.x
         if distance > 0:
-            distance = 10 + distance
+            distance = 10 - distance
         else:
             distance = -10 - distance
 
@@ -672,7 +692,7 @@ class CombatManager(object):
         else: self.bot.fighting = 0
 
         ##-----move_check 변화-----
-        if self.now_marine < 15: 
+        if self.now_marine < 15 and self.move_check >= 1: 
             self.less_marine = self.bot.time #해병 15 이하인 시간 체크
             if self.bot.time - self.move_time > 10 and self.before_marine >= self.now_marine:
                 #10초가 흘렀는데 해병이 늘지 않았으면 바로 후퇴(아니면 25초까지 기다려봄)
@@ -706,7 +726,7 @@ class CombatManager(object):
          
         elif self.bot.tank_units.amount <= 1 and self.move_check >= 1: #인원 대폭 줄었으면 초기 위치로
             self.move_check_action(0)
-        
+    
 
         #endregion
         #region Mule
@@ -763,9 +783,9 @@ class CombatManager(object):
                     flying_target = threaten.filter(
                         lambda unit:  unit.is_flying
                     )
-                    flying_buff = flying_target.filter(
+                    '''flying_buff = flying_target.filter(
                         lambda unit:  unit.has_buff(BuffId.RAVENANTIARMORMISSILEARMORREDUCTION)
-                    )
+                    )'''
                     ##-----타겟 조정-----
                     if threaten.exists :
                         if enemy_ghost.exists:
@@ -774,8 +794,8 @@ class CombatManager(object):
                             enemy_unit = enemy_bansee.closest_to(unit.position)
                         elif enemy_raven.exists:
                             enemy_unit = enemy_raven.closest_to(unit.position)
-                        elif flying_buff.exists:
-                            enemy_unit = flying_buff.closest_to(unit)
+                            '''elif flying_buff.exists:
+                            enemy_unit = flying_buff.closest_to(unit)'''
                         elif flying_target.exists:
                             enemy_unit = flying_target.closest_to(unit)
                         else:
@@ -788,10 +808,10 @@ class CombatManager(object):
                         walking_target = self.bot.known_enemy_units.filter(
                             lambda u: not u.is_flying
                         )
-                        enemy_ghost = walking_target(UnitTypeId.GHOST)
+                        enemy_ghost = self.bot.known_enemy_units(UnitTypeId.GHOST)
                         if enemy_ghost.exists:
                             enemy_unit = enemy_ghost.closest_to(unit.position)
-                        else:
+                        elif walking_target.exists:
                             enemy_unit = walking_target.closest_to(unit)
 
                 # 적 사령부와 가장 가까운 적 유닛중 더 가까운 것을 목표로 설정
@@ -807,7 +827,7 @@ class CombatManager(object):
                         self.target_pos = self.marine_center[self.move_check]
 
                     ##-----명령-----
-                    if unit.distance_to(self.bot.nuke_pos) < 11: #근처에 핵 발견했으면 뒤로 가라
+                    if self.bot.nuke_alert and unit.distance_to(self.bot.nuke_pos) < 11: #근처에 핵 발견했으면 뒤로 가라
                         self.nuke_action(unit, actions)
                     elif self.bot.is_ghost > 0: # 고스트, 벤시 있으면 걔네 먼저 공격
                         actions.append(unit.attack(target))
@@ -830,7 +850,7 @@ class CombatManager(object):
                 ##-----TANK-----
                 if unit.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
                     #근처에 핵 발견했으면 뒤로 가라
-                    if unit.distance_to(self.bot.nuke_pos) < 11:
+                    if self.bot.nuke_alert and unit.distance_to(self.bot.nuke_pos) < 11:
                         self.nuke_action(unit, actions)
                     else:
                         self.moving(unit, actions, target)
@@ -876,7 +896,7 @@ class TrainManager(object):
         self.bot= bot_ai
     
     def next_unit(self):
-        if self.bot.vespene > 100 and self.bot.units(UnitTypeId.RAVEN).exists:
+        if self.bot.vespene > 100:
             if len(self.bot.tankArray) <= 20:
                 next_unit = UnitTypeId.SIEGETANK
             else:
@@ -1237,32 +1257,57 @@ class Bot(sc2.BotAI):
         # 사령부 명령 생성
         #
         actions = list()
-        next_unit = self.train_manager.next_unit()
+        #next_unit = self.train_manager.next_unit()
+        next_unit = None
+
+        # 1순위: 핵이나 은폐 있을때 밤까마귀
+        # 2순위: 유령(시간됐을떄)
+        # 3순위: 핵
+        # 4순위: 넥스트 유닛(마린, 탱크)
 
         cc_abilities = await self.get_available_abilities(self.cc)
         #핵 우선생산
-        
-
-        
         # 이미 핵이 있으면 생산X
         if AbilityId.BUILD_NUKE not in cc_abilities and self.ghost_ready:
             self.ghost_ready = False
 
-        if self.nuke_alert and self.command_nuke and not self.units(UnitTypeId.RAVEN).exists:
-            pass # 레이븐 생산할때까지 다른거X 
-        elif self.ghost_ready :
-            if AbilityId.BUILD_NUKE in cc_abilities:
-                # 전술핵 생산 가능(자원이 충분)하면 전술핵 생산
+        #은폐 또는 핵 감지했을 떄 레이븐 없으면 레이븐 먼저
+        if (self.nuke_alert and self.command_nuke and self.time - self.nuke_time < 10) or (self.cloak_units.amount > 0) and not self.units(UnitTypeId.RAVEN).exists :
+                
+            # 시간넉넉하면 밤까마귀 생성해서 막기
+            # train_action에서 플래그 보고 자원 아껴야함
+                next_unit = UnitTypeId.RAVEN
+                #actions.append(cc.train(UnitTypeId.RAVEN))
+                #pass
+
+        else: 
+            #고스트가 없고 200초 지남, die_count가 2 이하 -> 유령 생산
+            if self.units(UnitTypeId.GHOST).amount == 0 and self.die_count < 2 and self.time >= 200:
+                next_unit = UnitTypeId.GHOST
+                #actions.append(cc.train(UnitTypeId.GHOST))
+                self.ghost_ready = True # 핵 항상 생산 
+            # 전술핵 생산 가능(자원이 충분)하면 전술핵 생산
+            elif self.ghost_ready and AbilityId.BUILD_NUKE in cc_abilities and self.units(UnitTypeId.GHOST).exists:
+
                 actions.append(self.cc(AbilityId.BUILD_NUKE))
+                next_unit = None
                 self.ghost_ready = False 
-        elif self.can_afford(next_unit):
-            if self.time - self.evoked.get((self.cc.tag, 'train'), 0) > 1.0:
-                # 해당 유닛 생산 가능하고, 마지막 명령을 발행한지 1초 이상 지났음
-                if not self.units(UnitTypeId.RAVEN).exists and self.vespene <= 200 :
-                    pass # 전투순양함 존버?
-                elif self.minerals >= 200:
-                    actions.append(self.cc.train(next_unit))
-                    self.evoked[(self.cc.tag, 'train')] = self.time
+            elif self.nuke_alert and not self.units(UnitTypeId.RAVEN).exists and self.vespene <= 200 :
+                next_unit = None
+                pass # 탱크 또는 전투순양함 존버?
+            elif self.vespene > 100 and len(self.combatArray) <=7:
+                next_unit = UnitTypeId.SIEGETANK
+            #elif self.vespene > 200 and len(self.combatArray) > 7:
+            elif self.time < 200 and self.minerals >= 200:
+                next_unit = UnitTypeId.MARINE
+            else:
+                next_unit = UnitTypeId.MARINE
+
+        
+        if next_unit != None and self.can_afford(next_unit) and self.time - self.evoked.get((self.cc.tag, 'train'), 0) > 1.0:
+            actions.append(self.cc.train(next_unit))
+            self.evoked[(self.cc.tag, 'train')] = self.time
+
         return actions
 
 
