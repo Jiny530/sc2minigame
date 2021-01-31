@@ -901,8 +901,21 @@ class CombatManager(object):
 
                     ##-----명령-----
                     #DEFENSE
-                    if self.bot.combat_strategy == 0 : 
+                    if target is not None:
+                        actions.append(unit.attack(target))
+                        if not unit.has_buff(BuffId.STIMPACK) and unit.distance_to(target) < 15 and threaten.amount > 5:
+                                # 유닛과 목표의 거리가 15이하일 경우 스팀팩 사용
+                                # '''not unit.has_buff(BuffId.STIMPACK) and''' 여기 주석했음
+                            if unit.health_percentage > 0.5:
+                                # 현재 스팀팩 사용중이 아니며, 체력이 50% 이상
+                                if self.bot.time - self.evoked.get((unit.tag, AbilityId.EFFECT_STIM), 0) > 1.0:
+                                    # 1초 이전에 스팀팩을 사용한 적이 없음
+                                    actions.append(unit(AbilityId.EFFECT_STIM))
+                                    self.evoked[(unit.tag, AbilityId.EFFECT_STIM)] = self.bot.time
+                        
+                    elif self.bot.combat_strategy == 0 : 
                         target_pos = self.defense_circle(unit,self.marine_center) #자신의 대기위치 계산
+                        if target is
                         if self.distance(unit.position, target_pos) > 0:
                             actions.append(unit.move(target_pos))
                         #else: actions.append(unit.hold_position)
@@ -915,16 +928,7 @@ class CombatManager(object):
                         actions.append(unit.move(self.defense_circle(unit,self.bot.enemy_cc)))
 
                     ##-----스킬-----
-                    if target is not None:
-                        if not unit.has_buff(BuffId.STIMPACK) and unit.distance_to(target) < 15 and threaten.amount > 5:
-                                # 유닛과 목표의 거리가 15이하일 경우 스팀팩 사용
-                                # '''not unit.has_buff(BuffId.STIMPACK) and''' 여기 주석했음
-                            if unit.health_percentage > 0.5:
-                                # 현재 스팀팩 사용중이 아니며, 체력이 50% 이상
-                                if self.bot.time - self.evoked.get((unit.tag, AbilityId.EFFECT_STIM), 0) > 1.0:
-                                    # 1초 이전에 스팀팩을 사용한 적이 없음
-                                    actions.append(unit(AbilityId.EFFECT_STIM))
-                                    self.evoked[(unit.tag, AbilityId.EFFECT_STIM)] = self.bot.time
+                    
 
                 ##-----HELLION-----
                 elif unit.type_id is UnitTypeId.HELLION:
@@ -1446,7 +1450,7 @@ class Bot(sc2.BotAI):
         actions = list()
         #next_unit = self.train_manager.next_unit()
         next_unit = None
-
+        ravens = self.units(UnitTypeId.RAVEN)
         # 1순위: 핵이나 은폐 있을때 밤까마귀
         # 2순위: 유령(시간됐을떄)
         # 3순위: 핵
@@ -1459,10 +1463,11 @@ class Bot(sc2.BotAI):
             self.ghost_ready = False
 
         #은폐 또는 핵 감지했을 떄 레이븐 없으면 레이븐 먼저
-        if (self.nuke_alert and self.command_nuke and self.time - self.nuke_time < 10) or (self.cloak_units.amount > 0) and not self.units(UnitTypeId.RAVEN).exists :
+        if (self.nuke_alert and self.command_nuke and self.time - self.nuke_time < 9 and ravens.closest_to(self.nuke_pos).distance_to(self.nuke_pos) > 25) or (self.cloak_units.amount > 0 and not ravens.exists) :
             # 시간넉넉하면 밤까마귀 생성해서 막기
             # train_action에서 플래그 보고 자원 아껴야함
                 next_unit = UnitTypeId.RAVEN
+
 
         else: 
             #핵이나 은폐있는데 베스핀 없음 -> 밤까마귀 존버
