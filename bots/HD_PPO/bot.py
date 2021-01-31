@@ -106,7 +106,7 @@ class NukeManager(object):
         nuke_units = self.bot.units.tags_in(self.bot.nukeArray)
         
         # 생산, 수정해야함
-        if ghosts.amount == 0 and self.bot.die_count <= 2 and self.bot.is_raven == 0:
+        if ghosts.amount == 0 and self.bot.die_count <= 2 :
             actions.append(cc.train(UnitTypeId.GHOST))
 
         if ghosts.amount > 0:
