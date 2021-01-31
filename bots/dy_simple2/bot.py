@@ -1,4 +1,4 @@
-__author__ = '이다영, 박혜진'
+__author__ = '이화여자대학교 이_집_인공지능_잘하네 이다영, 박혜진'
 
 import os
 
@@ -495,7 +495,10 @@ class ReconManager(object):
                                     self.recon(unit,actions)
                                 else :
                                     self.bot.run_alert = 1
-                                    actions.append(unit.move(self.bot.runaway(unit.position,self.nuke_pos,13)))
+                                    self.bot.runaway(unit,self.bot.nuke_pos,11,actions)
+                                    if self.bot.time - self.bot.hold <= 3:\
+                                        self.bot.runaway(unit,self.bot.nuke_pos,11,actions)
+
 
                 elif self.bot.combat_units.exists :
                     combat_center = self.bot.units.tags_in(self.bot.combatArray).center
@@ -658,6 +661,7 @@ class CombatManager(object):
                         y = center.y + r*math.sin(math.radians(theta[t%13]))
                     break
                 t += 1
+
         #탱크
         if unit.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
             for tank in self.bot.tankArray:
@@ -673,6 +677,19 @@ class CombatManager(object):
                     break
                 t += 1
 
+        if unit.type_id is UnitTypeId.VIKINGFIGHTER:
+            for vik in self.bot.vikArray:
+                if unit.tag == vik: 
+                    if t == 0: 
+                        r = 23
+                        x = center.x + r*math.cos(math.radians(theta[t]))
+                        y = center.y + r*math.sin(math.radians(theta[t]))
+                    else:
+                        r = t / 13 + 23
+                        x = center.x + r*math.cos(math.radians(theta[t%13]))
+                        y = center.y + r*math.sin(math.radians(theta[t%13]))
+                    break
+                t += 1
         target_pos = (Point2((x, y)))
 
         return target_pos
@@ -850,6 +867,7 @@ class CombatManager(object):
                 ##-----타겟 설정-----
                 enemy_unit = None
                 threaten = self.bot.known_enemy_units
+                target = None
                 #공중 공격 가능이면 공중 우선 타겟팅(고스트 최우선-핵방어)
                 #해병
                 if unit.type_id is UnitTypeId.MARINE:
@@ -909,25 +927,31 @@ class CombatManager(object):
 
                 if enemy_unit is None and unit.distance_to(enemy_cc) < 15:
                     target = enemy_cc
+                elif enemy_unit is not None and enemy_unit.distance_to(self.bot.start_location) > 25:
+                    target = None
                 else:
                     target = enemy_unit
+
+
+
                 ravens = self.bot.units(UnitTypeId.RAVEN)
+
                 
                 #모든 유닛이 근처에 핵 발견했으면 뒤로 도망가는게 최우선
-                if self.bot.nuke_alert and unit.distance_to(self.bot.nuke_pos) < 11: 
+                if self.bot.nuke_alert or self.bot.time - self.bot.hold <= 3 and unit.distance_to(self.bot.nuke_pos) < 11: 
                     enemy_ghost = self.bot.known_enemy_units(UnitTypeId.GHOST)
                     if ravens.exists and self.bot.run_alert == 0:
                         if self.bot.time - self.bot.nuke_time > 11 :
                             if unit.type_id is UnitTypeId.SIEGETANKSIEGED:
                                 actions.append(unit(AbilityId.UNSIEGE_UNSIEGE))
-                            else: actions.append(unit.move(self.bot.runaway(unit.position,self.bot.nuke_pos,13)))
+                            else: self.bot.runaway(unit,self.bot.nuke_pos,11,actions)
                         elif enemy_ghost.exists and enemy_ghost.closest_to(unit).can_be_attacked:
                             actions.append(unit.attack(enemy_ghost.closest_to(unit)))
                         #TODO : 나중에 더 세세하게 생각해보기
                     else:
                         if unit.type_id is UnitTypeId.SIEGETANKSIEGED:
                             actions.append(unit(AbilityId.UNSIEGE_UNSIEGE))
-                        else: actions.append(unit.move(self.bot.runaway(unit.position,self.bot.nuke_pos,13)))
+                        else: self.bot.runaway(unit,self.bot.nuke_pos,11,actions)
 
                 ##-----MARINE-----
                 elif unit.type_id is UnitTypeId.MARINE:
@@ -971,39 +995,40 @@ class CombatManager(object):
                     
 
                 ##-----HELLION-----
-                elif unit.type_id is UnitTypeId.HELLION:
+                elif unit.type_id in (UnitTypeId.VIKINGFIGHTER, UnitTypeId.HELLION):
+                    cooldown = 0
+                    #헬리온이 피할 적
+                    if unit.type_id == UnitTypeId.HELLION:
+                        cooldown = 18
+                        closer = self.bot.known_enemy_units.filter(
+                            lambda unit: unit.can_attack_ground and unit.target_in_range(unit,0.5)
+                        )
+                        further = self.bot.known_enemy_units.filter(
+                            lambda unit: unit.can_attack_ground and unit.target_in_range(unit,1)
+                        )
+                    else :
+                        cooldown = 14
+                        closer = self.bot.known_enemy_units.filter(
+                            lambda unit: unit.can_attack_air and unit.target_in_range(unit,0.5)
+                        )
+                        further = self.bot.known_enemy_units.filter(
+                            lambda unit: unit.can_attack_air and unit.target_in_range(unit,1)
+                        )
 
                     if target is not None:
-                        position = None
 
-                        if threaten.exists:
-                            for u in threaten:
-                                if unit.weapon_cooldown == 0:
-                                    actions.append(unit.attack(target))
-                                elif unit.weapon_cooldown < 18:
-                                    if u.target_in_range(unit, 0.5):
-                                        actions.append(unit.move(self.bot.runaway(unit.position, u.position,10)))
-                                    else:
-                                        actions.append(unit.attack(target))
-                                else:
-                                    if u.target_in_range(unit, 1):
-                                        actions.append(unit.move(self.bot.runaway(unit.position, u.position,10)))
-                                    else:
-                                        actions.append(unit.attack(target))
-                        
-                        else:
-                            if unit.weapon_cooldown == 0:
-                                actions.append(unit.attack(target))
-                            elif unit.weapon_cooldown < 18:
-                                if target.target_in_range(unit, 0.5):
-                                    actions.append(unit.move(self.bot.runaway(unit.position, target.position,10)))
-                                else:
-                                    actions.append(unit.attack(target))
+                        if unit.weapon_cooldown == 0:
+                            actions.append(unit.attack(target))
+                        elif unit.weapon_cooldown < cooldown:
+                            if closer.exists:
+                                self.bot.runaway(unit, closer.closest_to(unit).position,10,actions)
                             else:
-                                if u.target_in_range(unit, 1):
-                                    actions.append(unit.move(self.bot.runaway(unit.position, u.position,10)))
-                                else:
-                                    actions.append(unit.attack(target))
+                                actions.append(unit.attack(target))
+                        else:
+                            if further.exists:
+                                self.bot.runaway(unit, further.closest_to(unit).position,10,actions)
+                            else:
+                                actions.append(unit.attack(target))
 
                         '''
                         if unit.distance_to(target) <=4:
@@ -1015,11 +1040,12 @@ class CombatManager(object):
 
                             position = self.bot.runaway(unit.position, target.position,10)
                             actions.append(unit.move(position))
-                    '''
+                    
                     elif self.bot.cloak_units.exists:
                         c = self.bot.cloak_units.closer_than(7,unit)
                         if c.exists:
-                            actions.append(unit.move(self.bot.runaway(unit.position,c.position,10)))
+                            actions.append(unit.move(self.bot.runaway(unit.position,c.position,10)))'''
+
                     #DEFENSE
                     elif self.bot.combat_strategy == 0 : 
                         target_pos = self.defense_circle(unit,self.defense_center) #자신의 대기위치 계산
@@ -1191,6 +1217,19 @@ class AssignManager(object): #뜯어고쳐야함
                 self.bot.helArray[n]=None
             
             n += 1
+        
+        vik_tag = self.bot.units(UnitTypeId.VIKINGFIGHTER).tags
+        t = 0
+        for tag in self.bot.vikArray:
+            k = 1
+            
+            for tag1 in vik_tag:
+                if tag == tag1:
+                    k = 0
+            if k:
+                self.bot.vikArray[t]=None
+            
+            t += 1
 
 
         #이미 할당된 유닛의 태그 빼고
@@ -1206,8 +1245,6 @@ class AssignManager(object): #뜯어고쳐야함
                 pass
             elif unit.type_id is UnitTypeId.GHOST: #고스트는 nuke
                 self.bot.nukeArray.add(unit.tag)
-            elif unit.type_id is UnitTypeId.VIKINGFIGHTER: #바이킹 컴뱃
-                self.bot.combatArray.add(unit.tag)
             elif unit.type_id is UnitTypeId.HELLION: #화염차 컴뱃
                 self.bot.combatArray.add(unit.tag)
                 #헬리온에 None인 곳이 있으면 거기 먼저 배치
@@ -1221,6 +1258,21 @@ class AssignManager(object): #뜯어고쳐야함
                     n += 1
                 if m: 
                     self.bot.helArray.append(unit.tag)
+            elif unit.type_id is UnitTypeId.VIKINGFIGHTER: #화염차 컴뱃
+                self.bot.combatArray.add(unit.tag)
+                #바이킹에 None인 곳이 있으면 거기 먼저 배치
+                k = 1
+                t = 0
+                for tag in self.bot.vikArray:
+                    if tag == None:
+                        self.bot.vikArray[t] = unit.tag
+                        k = 0
+                        break
+                    t += 1
+                if k: 
+                    self.bot.vikArray.append(unit.tag)
+            elif unit.type_id is UnitTypeId.BATTLECRUISER: #배틀 컴뱃
+                self.bot.combatArray.add(unit.tag)
             elif unit.type_id in (UnitTypeId.SIEGETANKSIEGED,  UnitTypeId.SIEGETANK): #탱크(변신)는 컴뱃
                 self.bot.combatArray.add(unit.tag)
                 #탱크는 탱크에도 넣는데 None인 곳이 있으면 거기 먼저 배치
@@ -1352,6 +1404,7 @@ class Bot(sc2.BotAI):
         self.nuketime_flag = 0
         self.is_nuke = 0
         self.run_alert = 0
+        self.hold = 0
         #self.is_raven = 0
         
     def on_start(self):
@@ -1384,10 +1437,11 @@ class Bot(sc2.BotAI):
         # Learner에 join
         self.game_id = f"{self.host_name}_{time.time()}"
 
-    def runaway(self, u, t, dis):
+    def runaway(self, unit, t, dis, actions):
         # 상대위치와 내 위치로 직선방정식 구하기
         # 상대위치에서 내 위치 방향으로 7 이상 떨어지게 하기 (상대와 내가 5거리, 그러면 내 점과 2 떨어진 점 중 직선위에 있는, 상대점과 7 떨어진 점)
- 
+        u = unit.position
+
         if u.x == t.x :
             if u.y < t.y:
                 position = Point2((u.x,t.y-dis))
@@ -1396,7 +1450,7 @@ class Bot(sc2.BotAI):
         else:
             a = (t.y-u.y)/(t.x-u.x) # 기울기
             d = dis - math.sqrt((u.x-t.x)**2+(u.y-t.y)**2)
-            
+
             p = d*d/(a**2+1)
             q = math.sqrt(p)
 
@@ -1407,8 +1461,9 @@ class Bot(sc2.BotAI):
             y = a*(x - u.x) + u.y
             position = Point2((x,y))
 
- 
-        return position
+            if d > 0:
+                actions.append(unit.move(position))
+
         
 
     async def on_step(self, iteration: int):
@@ -1466,6 +1521,7 @@ class Bot(sc2.BotAI):
       
         self.nuke_alert = False
         self.is_nuke=1
+
         for effect in self.state.effects:
             if effect.id == EffectId.NUKEPERSISTENT:
                 self.is_nuke = 0
@@ -1475,6 +1531,9 @@ class Bot(sc2.BotAI):
                 if self.nuketime_flag == 0:
                     self.nuketime_flag = 1
                     self.nuke_time = self.time
+                if self.time - self.nuke_time >= 13 and self.nuketime_flag == 2 :
+                    self.nuketime = 3
+                    self.hold = self.time
                 #사령부 주변에 핵 잡히면 밤까마귀가 처치하도록
                 if self.units(UnitTypeId.COMMANDCENTER).exists and self.units(UnitTypeId.COMMANDCENTER).first.distance_to(self.nuke_pos) < 8:
                     self.command_nuke = True
@@ -1539,7 +1598,7 @@ class Bot(sc2.BotAI):
             self.ghost_ready = False
 
         #은폐 또는 핵 감지했을 떄 레이븐 없으면 레이븐 먼저
-        if (self.nuke_alert and self.command_nuke and self.time - self.nuke_time < 9 and ravens.closest_to(self.nuke_pos).distance_to(self.nuke_pos) > 25) or (self.cloak_units.amount > 0 and not ravens.exists) :
+        if (self.nuke_alert and self.command_nuke and self.time - self.nuke_time < 9 and ravens.exists and ravens.closest_to(self.nuke_pos).distance_to(self.nuke_pos) > 25) or (self.cloak_units.amount > 0 and not ravens.exists) :
             # 시간넉넉하면 밤까마귀 생성해서 막기
             # train_action에서 플래그 보고 자원 아껴야함
                 next_unit = UnitTypeId.RAVEN
