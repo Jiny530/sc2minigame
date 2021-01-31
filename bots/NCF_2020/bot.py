@@ -108,10 +108,9 @@ class NukeManager(object):
         
         # 2분뒤에 생성
 
-        #if ghosts.amount == 0 and self.bot.die_count < 2 :
-            #if self.bot.time >= 200:
-                #actions.append(cc.train(UnitTypeId.GHOST))
-                #self.bot.ghost_ready = True # 핵 항상 생산
+        if ghosts.amount == 0 and self.bot.die_count <= 2 :
+            actions.append(cc.train(UnitTypeId.GHOST))
+            self.bot.ghost_ready = True # 핵 항상 생산
 
         if ghosts.amount > 0:
 
@@ -1111,7 +1110,7 @@ class Bot(sc2.BotAI):
         self.tankArray = list()
 
         self.nuke_reward = 0 
-        self.nuke_strategy= 2
+        self.nuke_strategy= 0
         self.combat_strategy = 0
 
         # 정찰부대에서 사용하는 플래그
@@ -1281,7 +1280,7 @@ class Bot(sc2.BotAI):
 
         else: 
             #고스트가 없고 200초 지남, die_count가 2 이하 -> 유령 생산
-            if self.units(UnitTypeId.GHOST).amount == 0 and self.die_count < 2 and self.time >= 200:
+            if self.units(UnitTypeId.GHOST).amount == 0 and self.die_count < 2 :
                 next_unit = UnitTypeId.GHOST
                 #actions.append(cc.train(UnitTypeId.GHOST))
                 self.ghost_ready = True # 핵 항상 생산 

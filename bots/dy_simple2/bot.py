@@ -342,17 +342,6 @@ class NukeManager(object):
             elif self.is_raven == 2:
                 self.bot.nuke_strategy = randint(0,1)
             
-
-            # @@핵 쏘는 도중 죽으면 마이너스?
-            if self.bot.time - self.nuke_time < 14.0: 
-                self.bot.nuke_reward -= 0.05
-
-            if self.bot.nuke_strategy == 0: #윗길로 갔었으면
-                self.dead = 0 #위에서죽음 표시
-            elif self.bot.nuke_strategy == 1:
-                self.dead = 1 #아랫길이었다면 아래서 죽음 표시
-            elif self.bot.nuke_strategy == 2:
-                self.dead = 2 #아랫길이었다면 아래서 죽음 표시
         
         return actions
 
@@ -454,11 +443,36 @@ class ReconManager(object):
                 if self.bot.nuke_alert :
                     if self.bot.command_nuke:
                     # 사령부 주위 핵이면
+                        target = self.bot.known_enemy_units.filter(
+                            lambda u: u.type_id is UnitTypeId.GHOST and u.distance_to(self.bot.nuke_pos) < 12
+                        )
 
-                        if unit.energy > 45:
-                            target = self.bot.known_enemy_units.filter(
-                                lambda u: u.type_id is UnitTypeId.GHOST and u.distance_to(self.bot.nuke_pos) < 12
-                            )
+                        if self.bot.combat_units.exists:
+                            if self.bot.combat_strategy == 0 and target.exists :
+                                    # 타겟이 범위안에 있으면 오토터렛 범위에 따라 던지기
+                                    actions.append(unit.move(target.closest_to(unit)))
+                                    await self.setAutoturret(unit,target.closest_to(unit),actions,unit_abilities)
+                            elif self.bot.combat_strategy == 1 and target.exists and unit.distance_to(self.nuke_pos) < (9 - self.bot.time + self.bot.nuke_time)*4 and unit.energy + (11 - self.bot.time + self.bot.nuke_time) >= 50:
+                                    actions.append(unit.move(target.closest_to(unit)))
+                                    await self.setAutoturret(unit,target.closest_to(unit),actions,unit_abilities)
+                           
+                            elif not target.exists : #타겟이 범위 안에 없으면 찾기
+                                self.patrol(self.bot.nuke_pos,None)
+                                print("타겟없어 패트롤해")
+                                if enemy_ghost.exists:
+                                    target = enemy_ghost.filter(
+                                        lambda u: u.distance_to(self.bot.nuke_pos) < 12
+                                    )
+                                    if target.exists:
+                                        actions.append(unit.move(target.closest_to(unit)))
+                                        await self.setAutoturret(unit,target.closest_to(unit),actions,unit_abilities)
+                                    else: # 유령은 있는데 핵은 아직 안쐈다?
+                                        pass
+                                if not target.exists:
+                                    print("패트롤한다ㅏㅏㅏ")
+                                    self.recon(unit,actions)
+
+                        elif unit.energy + (11 - self.bot.time + self.bot.nuke_time) >= 50:
                             
                             if target.exists: # 타겟이 범위안에 있으면 오토터렛 범위에 따라 던지기
                                 await self.setAutoturret(unit,target.closest_to(unit),actions,unit_abilities)
@@ -474,6 +488,7 @@ class ReconManager(object):
                                         pass
                                 else:        
                                     self.recon(unit,actions)
+
                     else:
                         run_alert = 0
                         # 사령부 주위 핵이 아니면
@@ -1575,7 +1590,7 @@ class Bot(sc2.BotAI):
             self.ghost_ready = False
 
         #은폐 또는 핵 감지했을 떄 레이븐 없으면 레이븐 먼저
-        if (self.nuke_alert and self.command_nuke and self.time - self.nuke_time < 9 and ravens.exists and ravens.closest_to(self.nuke_pos).distance_to(self.nuke_pos) > 25) or (self.cloak_units.amount > 0 and not ravens.exists) :
+        if (self.nuke_alert and self.command_nuke and ravens.exists and ravens.closest_to(self.nuke_pos).distance_to(self.nuke_pos) >= (10 - self.time + self.nuke_time)*4 ) or (self.cloak_units.amount > 0 and not ravens.exists) :
             # 시간넉넉하면 밤까마귀 생성해서 막기
             # train_action에서 플래그 보고 자원 아껴야함
                 next_unit = UnitTypeId.RAVEN
