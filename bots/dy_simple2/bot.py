@@ -561,12 +561,12 @@ class CombatManager(object):
         if self.bot.start_location.x > 40:
             self.tank_center = [Point2((80,31.5)),Point2((71,31.5)),Point2((62,31.5)),Point2((53,31.5)),Point2((44,31.5)), Point2((35,31.5))]
             self.marine_center = [Point2((85,31.5)),Point2((76,31.5)),Point2((67,31.5)),Point2((58,31.5)),Point2((49,31.5)), Point2((40,31.5))]
-            self.marine_center = Point2((75, 31.5))
+            self.marine_center = Point2((65, 31.5))
         # 빨간색 기지일때
         else:
             self.tank_center = [Point2((46,31.5)),Point2((55,31.5)),Point2((64,31.5)),Point2((73,31.5)),Point2((82,31.5)), Point2((91,31.5))]
             self.marine_center = [Point2((41,31.5)),Point2((50,31.5)),Point2((59,31.5)),Point2((68,31.5)),Point2((77,31.5)), Point2((86,31.5))]
-            self.marine_center = Point2((50, 31.5))
+            self.marine_center = Point2((65, 31.5))
 
     def distance(self, pos1, pos2):
         """
@@ -610,33 +610,41 @@ class CombatManager(object):
         해병의 대기 위치를 계산
         """
         t = 0
-        x = self.marine_center.x-11
-        y = self.marine_center.y
+        r = 0
+        x = 0
+        y = 0
 
         if self.bot.start_location.x < 40: #빨강팀
-            theta = [120, 130, 140, 150, 160, 170, 180, 190, 200, 210, 220, 230, 240]
+            theta = [150, 155, 160, 165, 170, 175, 180, 185, 190, 195, 200, 205, 210]
         else: #파랑팀
-            theta = [60, 50, 40, 30, 20, 10, 0, 350, 340, 330, 320, 310, 300]
+            theta = [30, 25, 20, 15, 10, 5, 0, 355, 350, 345, 340, 335, 330]
 
-        for marine in self.bot.marineArray:
-            if unit.tag == marine: 
-                if t < 13:
-                    x = self.marine_center.x + 7*math.cos(math.radians(theta[t]))
-                    y = self.marine_center.y + 7*math.sin(math.radians(theta[t]))
-                elif t < 26:
-                    x = self.marine_center.x + 8*math.cos(math.radians(theta[t-13]))
-                    y = self.marine_center.y + 8*math.sin(math.radians(theta[t-13]))
-                elif t < 39:
-                    x = self.marine_center.x + 9*math.cos(math.radians(theta[t-26]))
-                    y = self.marine_center.y + 9*math.sin(math.radians(theta[t-26]))
-                elif t< 42:
-                    x = self.marine_center.x + 10*math.cos(math.radians(theta[t-39]))
-                    y = self.marine_center.y + 10*math.sin(math.radians(theta[t-39]))
-                else:
-                    x = self.marine_center.x-11
-                    y = self.marine_center.y 
-                break
-            t += 1
+        if unit.type_id is UnitTypeId.MARINE:
+            for marine in self.bot.marineArray:
+                if unit.tag == marine: 
+                    if t == 0: 
+                        r = 20
+                        x = self.marine_center.x + r*math.cos(math.radians(theta[t]))
+                        y = self.marine_center.y + r*math.sin(math.radians(theta[t]))
+                    else:
+                        r = t / 13 + 20
+                        x = self.marine_center.x + r*math.cos(math.radians(theta[t%13]))
+                        y = self.marine_center.y + r*math.sin(math.radians(theta[t%13]))
+                    break
+                t += 1
+        if unit.type_id is UnitTypeId.HELLION:
+            for hel in self.bot.helArray:
+                if unit.tag == hel: 
+                    if t == 0: 
+                        r = 23
+                        x = self.marine_center.x + r*math.cos(math.radians(theta[t]))
+                        y = self.marine_center.y + r*math.sin(math.radians(theta[t]))
+                    else:
+                        r = t / 13 + 23
+                        x = self.marine_center.x + r*math.cos(math.radians(theta[t%13]))
+                        y = self.marine_center.y + r*math.sin(math.radians(theta[t%13]))
+                    break
+                t += 1
 
         target_pos = (Point2((x, y)))
 
@@ -861,19 +869,19 @@ class CombatManager(object):
                 else:
                     target = enemy_unit
 
+                #모든 유닛이 근처에 핵 발견했으면 뒤로 도망가는게 최우선
+                if self.bot.nuke_alert and unit.distance_to(self.bot.nuke_pos) < 11: 
+                    self.nuke_action(unit, actions)
+
                 ##-----MARINE-----
-                if unit.type_id is UnitTypeId.MARINE:
+                elif unit.type_id is UnitTypeId.MARINE:
      
                     #if self.marine_call == 1:
                         #self.target_pos = self.marine_center[self.move_check]
 
                     ##-----명령-----
-                    #근처에 핵 발견했으면 뒤로 도망가는게 최우선
-                    if self.bot.nuke_alert and unit.distance_to(self.bot.nuke_pos) < 11: 
-                        self.nuke_action(unit, actions)
-                    
                     #DEFENSE
-                    elif self.bot.combat_strategy == 0: 
+                    if self.bot.combat_strategy == 0: 
                         target_pos = self.defense_circle(unit) #자신의 대기위치 계산
                         if self.distance(unit.position, target_pos) > 0:
                             actions.append(unit.move(target_pos))
@@ -897,14 +905,16 @@ class CombatManager(object):
                                 # 1초 이전에 스팀팩을 사용한 적이 없음
                                 actions.append(unit(AbilityId.EFFECT_STIM))
                                 self.evoked[(unit.tag, AbilityId.EFFECT_STIM)] = self.bot.time
+
+                ##-----HELLION-----
+                elif unit.type_id is UnitTypeId.HELLION:
+                    target_pos = self.defense_circle(unit) #자신의 대기위치 계산
+                    if self.distance(unit.position, target_pos) > 0:
+                        actions.append(unit.move(target_pos))
                   
                 ##-----TANK-----
-                if unit.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
-                    #근처에 핵 발견했으면 뒤로 가라
-                    if self.bot.nuke_alert and unit.distance_to(self.bot.nuke_pos) < 11:
-                        self.nuke_action(unit, actions)
-                    else:
-                        self.moving(unit, actions, target)
+                elif unit.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
+                    self.moving(unit, actions, target)
 
 
         return actions
@@ -1014,6 +1024,20 @@ class AssignManager(object): #뜯어고쳐야함
             
             a += 1
 
+        #헬리온 어레이에 배정되었다가 죽은 마린은 None
+        hel_tag = self.bot.units(UnitTypeId.HELLION).tags
+        n = 0
+        for tag in self.bot.helArray:
+            m = 1
+            
+            for tag1 in hel_tag:
+                if tag == tag1:
+                    m = 0
+            if m:
+                self.bot.helArray[n]=None
+            
+            n += 1
+
 
         #이미 할당된 유닛의 태그 빼고
         units_tag = units_tag - self.bot.combatArray - self.bot.reconArray - self.bot.nukeArray
@@ -1032,6 +1056,17 @@ class AssignManager(object): #뜯어고쳐야함
                 self.bot.combatArray.add(unit.tag)
             elif unit.type_id is UnitTypeId.HELLION: #화염차 컴뱃
                 self.bot.combatArray.add(unit.tag)
+                #헬리온에 None인 곳이 있으면 거기 먼저 배치
+                m = 1
+                n = 0
+                for tag in self.bot.helArray:
+                    if tag == None:
+                        self.bot.helArray[n] = unit.tag
+                        m = 0
+                        break
+                    n += 1
+                if m: 
+                    self.bot.helArray.append(unit.tag)
             elif unit.type_id is UnitTypeId.BATTLECRUISER: #배틀 컴뱃
                 self.bot.combatArray.add(unit.tag)
             elif unit.type_id in (UnitTypeId.SIEGETANKSIEGED,  UnitTypeId.SIEGETANK): #탱크(변신)는 컴뱃
@@ -1061,7 +1096,7 @@ class AssignManager(object): #뜯어고쳐야함
                 if a: 
                     self.bot.marineArray.append(unit.tag)
                 
-
+    '''
     def reassign(self):
         """
         이미 배정된 유닛을 다시 배정
@@ -1098,7 +1133,7 @@ class AssignManager(object): #뜯어고쳐야함
                 self.bot.nukeArray.add(unit.tag)
             elif unit.type_id in [UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK]: #탱크는 옮기기
                 self.bot.reconArray.remove(tag)
-                self.bot.combatArray.add(unit.tag)
+                self.bot.combatArray.add(unit.tag)'''
 
 
 class Bot(sc2.BotAI):
@@ -1136,6 +1171,7 @@ class Bot(sc2.BotAI):
         self.nukeArray = set()
         self.tankArray = list()
         self.marineArray = list()
+        self.helArray = list()
 
         self.nuke_reward = 0 
         self.nuke_strategy= 2
@@ -1207,10 +1243,9 @@ class Bot(sc2.BotAI):
 
         actions = list() # 이번 step에 실행할 액션 목록
 
-        #전진 기준
-        if len(self.tankArray) >=3 and self.units(UnitTypeId.VIKINGFIGHTER).exists and self.units(UnitTypeId.VIKINGFIGHTER).amount >=4:
-            if self.combat_units.amount > 100:
-                self.combat_strategy = 1
+        #전체 전진 기준
+        if len(self.tankArray) >=3 and self.units(UnitTypeId.VIKINGFIGHTER).amount >=4 and self.combat_units.amount > 70:
+            self.combat_strategy = 1
 
         self.flying_enemy = self.known_enemy_units.filter(
             lambda u: u.type_id in (UnitTypeId.BANSHEE, UnitTypeId.BATTLECRUISER, UnitTypeId.VIKINGFIGHTER)
@@ -1220,7 +1255,7 @@ class Bot(sc2.BotAI):
         ) #적 지상 유닛
 
         #적이 공중전 타입이라는 걸 체크 -- 수정 필요
-        if self.flying_enemy.exists and self.walking_enemy.exists and self.flying_enemy.amount >= self.walking_enemy.amount / 2:
+        if self.flying_enemy.amount >= self.walking_enemy.amount / 2:
             self.enemy_is_flying = True
         '''
         if self.time - self.last_step_time >= self.step_interval:
@@ -1287,6 +1322,9 @@ class Bot(sc2.BotAI):
         self.marine_units = self.combat_units.filter(
             lambda u: u.type_id is UnitTypeId.MARINE
         )
+        self.hel_units = self.combat_units.filter(
+            lambda u: u.type_id is UnitTypeId.HELLION
+        )
         
         actions += await self.recon_manager.step() 
         actions += await self.combat_manager.step()   
@@ -1340,7 +1378,7 @@ class Bot(sc2.BotAI):
                     next_unit = UnitTypeId.VIKINGFIGHTER
                 #해병과 화염차도 미네랄 여유 두고 생산(2:1비율)
                 elif self.minerals >= 200:
-                    if self.units(UnitTypeId.HELLION).exists and self.units(UnitTypeId.MARINE).exists and self.units(UnitTypeId.HELLION).amount < self.units(UnitTypeId.MARINE).amount / 2:
+                    if self.units(UnitTypeId.HELLION).amount < self.units(UnitTypeId.MARINE).amount / 2:
                         next_unit = UnitTypeId.HELLION
                     else: next_unit = UnitTypeId.MARINE
             #초기 집결 후 전진 중(밤까마귀 생산 필요x)
