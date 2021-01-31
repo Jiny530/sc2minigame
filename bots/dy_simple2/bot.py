@@ -700,9 +700,9 @@ class CombatManager(object):
                         x = center.x + r*math.cos(math.radians(theta[t]))
                         y = center.y + r*math.sin(math.radians(theta[t]))
                     else:
-                        r = t / 6 + 20
-                        x = center.x + r*math.cos(math.radians(theta[t%13 * 2]))
-                        y = center.y + r*math.sin(math.radians(theta[t%13 * 2]))
+                        r = t / 13 + 20
+                        x = center.x + r*math.cos(math.radians(theta[t%13]))
+                        y = center.y + r*math.sin(math.radians(theta[t%13]))
                     break
                 t += 1
         #바이킹
@@ -992,9 +992,8 @@ class CombatManager(object):
                 ##-----MARINE-----
                 elif unit.type_id is UnitTypeId.MARINE:
 
-                    if self.marine_gone == 2:
-                        if unit.tag == marineArray[0].tag:
-                            actions.append(unit.move(self.bot.enemy_cc))
+                    if self.bot.marine_gone == 2 and unit.tag == self.bot.marineArray[0]:
+                        actions.append(unit.move(self.bot.enemy_cc))
                     else: 
                         ##-----명령-----
                         if target is not None:
@@ -1487,6 +1486,22 @@ class Bot(sc2.BotAI):
 
         actions = list() # 이번 step에 실행할 액션 목록        
 
+        #-----유닛츠 배치-----
+        self.combat_units = self.units.filter(
+            lambda unit: unit.tag in self.combatArray
+            and unit.type_id in [UnitTypeId.MARINE, UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED, UnitTypeId.HELLION, UnitTypeId.VIKINGFIGHTER]
+        )
+        self.nuke_units = self.units.tags_in(self.nukeArray)
+        self.tank_units = self.combat_units.filter(
+            lambda unit:  unit.type_id in [UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED]
+        )
+        self.marine_units = self.combat_units.filter(
+            lambda u: u.type_id is UnitTypeId.MARINE
+        )
+        self.hel_units = self.combat_units.filter(
+            lambda u: u.type_id is UnitTypeId.HELLION
+        )
+
         self.flying_enemy = self.known_enemy_units.filter(
             lambda u: u.type_id in (UnitTypeId.BANSHEE, UnitTypeId.BATTLECRUISER, UnitTypeId.VIKINGFIGHTER)
         ) #적 공중 유닛(공격용)
@@ -1572,6 +1587,8 @@ class Bot(sc2.BotAI):
         self.hel_units = self.combat_units.filter(
             lambda u: u.type_id is UnitTypeId.HELLION
         )
+
+        
         
         #전체 전진 기준
         if self.combat_strategy == 0 and self.tank_units.amount >=3 and self.units(UnitTypeId.VIKINGFIGHTER).amount >=3 and self.combat_units.amount > 60:
@@ -1612,62 +1629,75 @@ class Bot(sc2.BotAI):
         # 이미 핵이 있으면 생산X
         if AbilityId.BUILD_NUKE not in cc_abilities and self.ghost_ready:
             self.ghost_ready = False
+            #print("1")
 
         #은폐 또는 핵 감지했을 떄 레이븐 없으면 레이븐 먼저
         if (self.nuke_alert and self.command_nuke and ravens.exists and ravens.closest_to(self.nuke_pos).distance_to(self.nuke_pos) >= (10 - self.time + self.nuke_time)*4 ) or (self.cloak_units.amount > 0 and not ravens.exists) or self.known_enemy_units(UnitTypeId.BATTLECRUISER).exists :
             # 시간넉넉하면 밤까마귀 생성해서 막기
             # train_action에서 플래그 보고 자원 아껴야함
                 next_unit = UnitTypeId.RAVEN
+                #print("2")
 
-
+        
         else: 
             #핵이나 은폐있는데 베스핀 없음 -> 밤까마귀 존버
             if (self.nuke_alert or self.cloak_units.exists) and not self.units(UnitTypeId.RAVEN).exists and self.vespene <= 200:
                 next_unit = None
+                #print("3")
                 pass 
             #초기 집결 중(밤까마귀 생산 필요x)
             elif self.combat_strategy == 0:
                 #밤까마귀도 있는데 은폐유닛이 남아있어->바이킹
                 if self.units(UnitTypeId.RAVEN).exists and self.cloak_units.exists and self.vespene > 50:
+                    #print("4")
                     next_unit = UnitTypeId.VIKINGFIGHTER
                 #적이 5명 넘으면 탱크 긴급투입
                 elif self.known_enemy_units.amount >= 5 and self.tank_units.amount < 4:
+                    #print("5")
                     next_unit = UnitTypeId.SIEGETANK
                 #마린 보내 정찰
                 elif self.marine_gone == 1:
+                    #print("6")
                     next_unit = UnitTypeId.MARINE
                     self.marine_gone = 2
                 #바이킹은 4대까지(베스핀 여유두고)
-                elif self.vespene > 250 and self.tank_units.amount >= self.units(UnitTypeId.VIKINGFIGHTER).amount and self.units(UnitTypeId.VIKINGFIGHTER).amount < 2:
+                elif self.vespene > 250 and self.tank_units.amount >= self.units(UnitTypeId.VIKINGFIGHTER).amount and self.units(UnitTypeId.VIKINGFIGHTER).amount < 4:
+                    #print("7")
                     next_unit = UnitTypeId.VIKINGFIGHTER
                     if self.marine_gone == 0: self.marine_gone = 1
-                #바이킹은 4대까지(베스핀 여유두고)
-                elif self.vespene > 250 and self.tank_units.amount >= self.units(UnitTypeId.VIKINGFIGHTER).amount and self.units(UnitTypeId.VIKINGFIGHTER).amount < 4:
-                    next_unit = UnitTypeId.VIKINGFIGHTER
                 #베스핀 남으면 우선 탱크 3대까지(베스핀 여유 두어야)
                 elif self.vespene > 250 and self.tank_units.amount <= self.units(UnitTypeId.VIKINGFIGHTER).amount and self.tank_units.amount < 4:
+                    #print("8")
                     next_unit = UnitTypeId.SIEGETANK
                 #다 충분한데 밤까마귀가 없으면 만들기
-                elif self.units(UnitTypeId.RAVEN).amount < 1:
+                elif self.tank_units.amount >= 4 and self.units(UnitTypeId.VIKINGFIGHTER).amount >= 4 and self.units(UnitTypeId.RAVEN).amount < 1:
+                    #print("9")
                     next_unit = UnitTypeId.RAVEN
                 #바이킹 3, 탱크 3 다 완성되면 탱크와 바이킹 수 똑같이 생산되도록
                 elif self.vespene > 250 and self.tank_units.amount <= self.units(UnitTypeId.VIKINGFIGHTER).amount:
+                    #print("10")
                     next_unit = UnitTypeId.SIEGETANK
                 elif self.vespene > 250 and self.tank_units.amount >= self.units(UnitTypeId.VIKINGFIGHTER).amount:
+                    #print("11")
                     next_unit = UnitTypeId.VIKINGFIGHTER
                 #해병과 화염차도 미네랄 여유 두고 생산(2:1비율)
                 elif self.minerals >= 200:
                     if self.units(UnitTypeId.HELLION).amount < self.units(UnitTypeId.MARINE).amount / 2:
+                        #print("13")
                         next_unit = UnitTypeId.HELLION
-                    else: next_unit = UnitTypeId.MARINE
+                    else:
+                        #print("12") 
+                        next_unit = UnitTypeId.MARINE
             #초기 집결 후 전진 중(밤까마귀 생산 필요x)
             else:
                 #고스트가 없고 200초 지남, die_count가 2 이하 -> 유령 생산
                 if self.units(UnitTypeId.GHOST).amount == 0 and self.die_count < 2 and self.time >= 200:
+                    #print("14")
                     next_unit = UnitTypeId.GHOST
                     self.ghost_ready = True # 핵 항상 생산
                 # 전술핵 생산 가능(자원이 충분)하면 전술핵 생산
                 elif self.ghost_ready and AbilityId.BUILD_NUKE in cc_abilities and self.units(UnitTypeId.GHOST).exists:
+                    #print("15")
                     actions.append(self.cc(AbilityId.BUILD_NUKE))
                     next_unit = None
                     self.ghost_ready = False 
@@ -1676,21 +1706,32 @@ class Bot(sc2.BotAI):
                     #적이 지상전 타입이면
                     if self.enemy_is_flying == False:
                         if self.vespene > 150 and self.units(UnitTypeId.RAVEN).amount < 4: 
+                            #print("16")
                             next_unit = UnitTypeId.RAVEN
                         elif self.vespene > 100 : #베스핀 되는대로 탱크
+                            #print("17")
                             next_unit = UnitTypeId.SIEGETANK
                         elif self.units(UnitTypeId.HELLION).amount < self.units(UnitTypeId.MARINE).amount / 2:
+                            #print("18")
                             next_unit = UnitTypeId.HELLION
-                        else: next_unit = UnitTypeId.MARINE
+                        else: 
+                            #print("19")
+                            next_unit = UnitTypeId.MARINE
+
                     #적이 공중전 타입이면
                     else:
                         if self.vespene > 150 and self.units(UnitTypeId.RAVEN).amount < 6: 
+                            #print("111")
                             next_unit = UnitTypeId.RAVEN
                         elif self.vespene > 50: #베스핀 되는대로 바이킹
+                            #print("112")
                             next_unit = UnitTypeId.VIKINGFIGHTER
                         elif self.units(UnitTypeId.HELLION).amount < self.units(UnitTypeId.MARINE).amount / 2:
+                            #print("113")
                             next_unit = UnitTypeId.HELLION
-                        else: next_unit = UnitTypeId.MARINE
+                        else:
+                            #print("114") 
+                            next_unit = UnitTypeId.MARINE
         
         if next_unit != None and self.can_afford(next_unit) and self.time - self.evoked.get((self.cc.tag, 'train'), 0) > 1.0:
             actions.append(self.cc.train(next_unit))
