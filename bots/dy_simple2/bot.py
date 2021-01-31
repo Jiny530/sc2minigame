@@ -699,8 +699,8 @@ class CombatManager(object):
                         y = center.y + r*math.sin(math.radians(theta[t]))
                     else:
                         r = t / 13 + 23
-                        x = center.x + r*math.cos(math.radians(theta[t%13]))
-                        y = center.y + r*math.sin(math.radians(theta[t%13]))
+                        x = center.x + r*math.cos(math.radians(theta[t%26]))
+                        y = center.y + r*math.sin(math.radians(theta[t%26]))
                     break
                 t += 1
         target_pos = (Point2((x, y)))
@@ -1552,8 +1552,8 @@ class Bot(sc2.BotAI):
         if self.combat_strategy == 1 and self.tank_units.amount + self.units(UnitTypeId.VIKINGFIGHTER).amount >= 15 and self.combat_units.amount > 60:
             self.combat_strategy = 2
         #전체 후퇴 기준
-        if self.combat_strategy == 1 and self.known_enemy_units(UnitTypeId.BATTLECRUISER).exists and self.known_enemy_units(UnitTypeId.BATTLECRUISER).closest_to(self.cc).distance_to(self.cc) < 5 and self.fighting == 0:
-            self.combat_strategy == 0
+        if self.combat_strategy == 1 and self.known_enemy_units(UnitTypeId.BATTLECRUISER).exists and self.known_enemy_units(UnitTypeId.BATTLECRUISER).closest_to(self.cc).target_in_range(self.cc, 0.5) and self.fighting == 0:
+            self.combat_strategy == 3
         if self.combat_strategy >= 1 and (self.tank_units.amount + self.units(UnitTypeId.VIKINGFIGHTER).amount < 5 or self.combat_units.amount < 10):
             self.combat_strategy == 0
         if self.combat_strategy == 2 and (self.tank_units.amount + self.units(UnitTypeId.VIKINGFIGHTER).amount < 7 or self.combat_units.amount < 20):
