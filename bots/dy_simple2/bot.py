@@ -425,7 +425,7 @@ class ReconManager(object):
         if ravens.amount > 0:
             raven = ravens.first            
             
-            threaten = self.bot.known_enemy_units.closer_than(15, raven.position)
+            threaten = self.bot.known_enemy_units.closer_than(20, raven.position)
             cloak_units = threaten.filter(
                 lambda unit: unit.type_id is UnitTypeId.GHOST or unit.type_id is UnitTypeId.BANSHEE
             )
@@ -452,7 +452,7 @@ class ReconManager(object):
                                     # 타겟이 범위안에 있으면 오토터렛 범위에 따라 던지기
                                     actions.append(unit.move(target.closest_to(unit)))
                                     await self.setAutoturret(unit,target.closest_to(unit),actions,unit_abilities)
-                            elif self.bot.combat_strategy == 1 and target.exists and unit.distance_to(self.nuke_pos) < (9 - self.bot.time + self.bot.nuke_time)*4 and unit.energy + (11 - self.bot.time + self.bot.nuke_time) >= 50:
+                            elif self.bot.combat_strategy == 1 and target.exists and unit.distance_to(self.bot.nuke_pos) < (9 - self.bot.time + self.bot.nuke_time)*4 and unit.energy + (11 - self.bot.time + self.bot.nuke_time) >= 50:
                                     actions.append(unit.move(target.closest_to(unit)))
                                     await self.setAutoturret(unit,target.closest_to(unit),actions,unit_abilities)
                            
@@ -532,16 +532,32 @@ class ReconManager(object):
                     else: # 안 닿으면 센터에 있기
                         actions.append(unit.move(combat_center)) 
                     
-                    # 가장 가까운 장갑 유닛
-                    if mechanic.exists and AbilityId.EFFECT_ANTIARMORMISSILE in unit_abilities:
-                        if mechanic(UnitTypeId.BATTLECRUISER).exists:
-                            actions.append(unit(AbilityId.EFFECT_ANTIARMORMISSILE, mechanic(UnitTypeId.BATTLECRUISER).closest_to(unit)))
-                        else:
-                            actions.append(unit(AbilityId.EFFECT_ANTIARMORMISSILE, mechanic.closest_to(unit)))
+
+                    # 방해매트릭스
+                    if threaten(UnitTypeId.BATTLECRUISER).exists and AbilityId.EFFECT_INTERFERENCEMATRIX in unit_abilities:
+                        actions.append(unit(AbilityId.EFFECT_INTERFERENCEMATRIX, threaten(UnitTypeId.BATTLECRUISER).closest_to(unit)))
+                    elif threaten(UnitTypeId.THOR).exists and AbilityId.EFFECT_INTERFERENCEMATRIX in unit_abilities:
+                        actions.append(unit(AbilityId.EFFECT_INTERFERENCEMATRIX, threaten(UnitTypeId.THOR).closest_to(unit)))
+                    elif threaten(UnitTypeId.SIEGETANKSIEGED).amount and AbilityId.EFFECT_INTERFERENCEMATRIX in unit_abilities:
+                        actions.append(unit(AbilityId.EFFECT_INTERFERENCEMATRIX, threaten(UnitTypeId.SIEGETANKSIEGED).closest_to(unit)))
+                    #대장갑미사일
+                    elif threaten.amount > 20 and self.bot.combat_units.amount > 20 and AbilityId.EFFECT_ANTIARMORMISSILE in unit_abilities:
+                        if threaten(UnitTypeId.BATTLECRUISER).exists:
+                            target = threaten(UnitTypeId.BATTLECRUISER).closest_to(unit)
+                        elif threaten(UnitTypeId.THOR).exists:
+                            target = threaten(UnitTypeId.THOR).closest_to(unit)
+                        elif threaten(UnitTypeId.SIEGETANKSIEGED).exists:
+                            target = threaten(UnitTypeId.SIEGETANKSIEGED).closest_to(unit)
+                        elif threaten(UnitTypeId.SIEGETANK).exists:
+                            target = threaten(UnitTypeId.SIEGETANK).closest_to(unit)
+                        elif threaten(UnitTypeId.BANSHEE).exists:
+                            target = threaten(UnitTypeId.BANSHEE).closest_to(unit)
+                        else : target = threaten.closest_to(unit)                
+                        actions.append(unit(AbilityId.EFFECT_ANTIARMORMISSILE,target))
                     
                     if self.bot.cloak_units.exists:
-                        cloak = self.bot.cloak_units.closer_than(15,unit)
-                        if cloak.exists:
+                        cloak = self.bot.cloak_units.closer_than(20,unit)
+                        if cloak.exists: # 은폐유닛이 사거리에 들게 하기
                             cloak = cloak.closest_to(unit)
                             if unit.distance_to(cloak) > 11:
                                 distance = unit.position.x - cloak.position.x
