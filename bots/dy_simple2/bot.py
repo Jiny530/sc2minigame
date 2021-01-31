@@ -812,6 +812,9 @@ class CombatManager(object):
         if attacking_units.amount > 5:
             self.bot.fighting = 1
         else: self.bot.fighting = 0
+
+
+
         '''
         ##-----move_check 변화-----
         if self.now_marine < 15 and self.move_check >= 1: 
@@ -967,7 +970,7 @@ class CombatManager(object):
                 elif self.bot.combat_strategy == 1:
                     target_pos = self.defense_circle(unit,self.bot.enemy_cc) #자신의 대기위치 계산
                 elif self.bot.combat_strategy == 2:
-                     target_pos = self.bot.enemy_cc
+                    target_pos = self.bot.enemy_cc
                 
                 #-----유닛 이동-----
                 #모든 유닛이 근처에 핵 발견했으면 뒤로 도망가는게 최우선
@@ -989,26 +992,30 @@ class CombatManager(object):
                 ##-----MARINE-----
                 elif unit.type_id is UnitTypeId.MARINE:
 
-                    ##-----명령-----
-                    if target is not None:
-                        if self.bot.combat_strategy == 0 and unit.distance_to(self.bot.start_location) > 25:
-                            actions.append(unit.move(target_pos))
+                    if self.marine_gone == 2:
+                        if unit.tag == marineArray[0].tag:
+                            actions.append(unit.move(self.bot.enemy_cc))
+                    else: 
+                        ##-----명령-----
+                        if target is not None:
+                            if self.bot.combat_strategy == 0 and unit.distance_to(self.bot.start_location) > 25:
+                                actions.append(unit.move(target_pos))
+                            else:
+                                actions.append(unit.attack(target))
+                            ##-----스킬-----
+                            if not unit.has_buff(BuffId.STIMPACK) and unit.distance_to(target) < 15 and threaten.amount > 5:
+                                    # 유닛과 목표의 거리가 15이하일 경우 스팀팩 사용
+                                    # '''not unit.has_buff(BuffId.STIMPACK) and''' 여기 주석했음
+                                if unit.health_percentage > 0.5:
+                                    # 현재 스팀팩 사용중이 아니며, 체력이 50% 이상
+                                    if self.bot.time - self.evoked.get((unit.tag, AbilityId.EFFECT_STIM), 0) > 1.0:
+                                        # 1초 이전에 스팀팩을 사용한 적이 없음
+                                        actions.append(unit(AbilityId.EFFECT_STIM))
+                                        self.evoked[(unit.tag, AbilityId.EFFECT_STIM)] = self.bot.time
+                        #DEFENSE, WAIT, OFFENSE
                         else:
-                            actions.append(unit.attack(target))
-                        ##-----스킬-----
-                        if not unit.has_buff(BuffId.STIMPACK) and unit.distance_to(target) < 15 and threaten.amount > 5:
-                                # 유닛과 목표의 거리가 15이하일 경우 스팀팩 사용
-                                # '''not unit.has_buff(BuffId.STIMPACK) and''' 여기 주석했음
-                            if unit.health_percentage > 0.5:
-                                # 현재 스팀팩 사용중이 아니며, 체력이 50% 이상
-                                if self.bot.time - self.evoked.get((unit.tag, AbilityId.EFFECT_STIM), 0) > 1.0:
-                                    # 1초 이전에 스팀팩을 사용한 적이 없음
-                                    actions.append(unit(AbilityId.EFFECT_STIM))
-                                    self.evoked[(unit.tag, AbilityId.EFFECT_STIM)] = self.bot.time
-                    #DEFENSE, WAIT, OFFENSE
-                    else:
-                        if self.distance(unit.position, target_pos) > 0:
-                            actions.append(unit.move(target_pos))
+                            if self.distance(unit.position, target_pos) > 0:
+                                actions.append(unit.move(target_pos))
 
 
                 ##-----HELLION-----
@@ -1382,7 +1389,7 @@ class Bot(sc2.BotAI):
         self.nuke_reward = 0 
         self.nuke_strategy= 2
         self.combat_strategy = 0 #0:Defense, 1: WAIT, 2:Offense(무브체크 대신)
-        self.marine_gone = 0 #마린 보내서 적 확인<-0:아직 안보냄, 1:보내야함 2: 보냄
+        self.marine_gone = 0 #마린 보내서 적 확인<-0:아직 안보냄, 1:보내야함 2: 생산함
 
         # 정찰부대에서 사용하는 플래그
         self.threaten=list()
@@ -1488,8 +1495,9 @@ class Bot(sc2.BotAI):
         ) #적 지상 유닛
 
         #적이 공중전 타입이라는 걸 체크 -- 수정 필요
-        if self.flying_enemy.amount >= self.walking_enemy.amount / 2 or self.known_enemy_units(UnitTypeId.BATTLECRUISER).exists:
-            self.enemy_is_flying = True
+        if self.marine_gone == 2:
+            if self.flying_enemy.amount >= 7 or self.known_enemy_units(UnitTypeId.BATTLECRUISER).exists:
+                self.enemy_is_flying = True
         '''
         if self.time - self.last_step_time >= self.step_interval:
             #택틱 변경
@@ -1629,9 +1637,6 @@ class Bot(sc2.BotAI):
                 elif self.marine_gone == 1:
                     next_unit = UnitTypeId.MARINE
                     self.marine_gone = 2
-                #베스핀 남으면 우선 탱크 3대까지(베스핀 여유 두어야)
-                elif self.vespene > 250 and self.tank_units.amount <= self.units(UnitTypeId.VIKINGFIGHTER).amount and self.tank_units.amount < 4:
-                    next_unit = UnitTypeId.SIEGETANK
                 #바이킹은 4대까지(베스핀 여유두고)
                 elif self.vespene > 250 and self.tank_units.amount >= self.units(UnitTypeId.VIKINGFIGHTER).amount and self.units(UnitTypeId.VIKINGFIGHTER).amount < 2:
                     next_unit = UnitTypeId.VIKINGFIGHTER
@@ -1639,6 +1644,9 @@ class Bot(sc2.BotAI):
                 #바이킹은 4대까지(베스핀 여유두고)
                 elif self.vespene > 250 and self.tank_units.amount >= self.units(UnitTypeId.VIKINGFIGHTER).amount and self.units(UnitTypeId.VIKINGFIGHTER).amount < 4:
                     next_unit = UnitTypeId.VIKINGFIGHTER
+                #베스핀 남으면 우선 탱크 3대까지(베스핀 여유 두어야)
+                elif self.vespene > 250 and self.tank_units.amount <= self.units(UnitTypeId.VIKINGFIGHTER).amount and self.tank_units.amount < 4:
+                    next_unit = UnitTypeId.SIEGETANK
                 #다 충분한데 밤까마귀가 없으면 만들기
                 elif self.units(UnitTypeId.RAVEN).amount < 1:
                     next_unit = UnitTypeId.RAVEN
