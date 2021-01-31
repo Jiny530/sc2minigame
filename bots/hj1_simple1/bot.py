@@ -28,8 +28,7 @@ from sc2.player import Bot as _Bot
 from sc2.position import Point2
 from termcolor import colored, cprint
 import queue
-
-nest_asyncio.apply()
+import math
 
 
 class Bot(sc2.BotAI):
@@ -40,22 +39,43 @@ class Bot(sc2.BotAI):
         super().__init__()
         
     def on_start(self):
-        self.a=0
-        self.enemy_alert=0
-        self.die_alert=0
-        self.is_ghost=0
-        self.last_pos=None
-        if self.enemy_start_locations[0].x == 95.5:
-            self.patrol_pos = [Point2((25.5, 37)), Point2((39.5, 37)), Point2((39.5, 23)), Point2((25.5, 23))]
-            self.front = Point2((39.5, 30))
-        else :
-            self.patrol_pos = [Point2((102.5, 37)), Point2((88.5, 37)), Point2((88.5, 23)), Point2((102.5, 23))]
-            self.front = Point2((102.5, 30))
-        self.patrol_queue = queue.Queue() #tlqkf 왜안돼
-        self.patrol_queue.put(self.patrol_pos[2])
-        self.patrol_queue.put(self.patrol_pos[3])
-        self.patrol_queue.put(self.patrol_pos[0])
+        pass
         
+    def patrolAttack(self, unit, actions):
+        # 상대방의 좌표를 패트롤 목적지로 찍음
+        # 공격상태를 한번 감지하면 바로 상대방과 나의 상대좌표를 계산 후 뒤로 물러나기
+        # 일정 사거리 이상 물러나면 다시 목적지로 찍기
+        # 뒤로 물러나다가 closet가 다른적으로 바뀌게 둘지? 아니면 한번 그 유닛이 죽을때까지 그 유닛만 할지?
+        pass
+    
+    def runaway(self, u, t, dis):
+        # 상대위치와 내 위치로 직선방정식 구하기
+        # 상대위치에서 내 위치 방향으로 7 이상 떨어지게 하기 (상대와 내가 5거리, 그러면 내 점과 2 떨어진 점 중 직선위에 있는, 상대점과 7 떨어진 점)
+
+        if u.x == t.x :
+            if u.y < t.y:
+                position = Point2((u.x,t.y-dis))
+            else:
+                position = Point2((u.x,t.y + dis))
+        else:
+            a = (t.y-u.y)/(t.x-u.x) # 기울기
+            d = dis - math.sqrt((u.x-t.x)**2+(u.y-t.y)**2)
+            
+            p = d*d/(a**2+1)
+            q = math.sqrt(p)
+
+            if u.x < t.x : #유닛이 왼쪽이면 왼쪽으로 도망
+                x = u.x - q
+            else:
+                x = u.x + q
+            y = a*(x - u.x) + u.y
+            position = Point2((x,y))
+
+ 
+        return position
+
+
+
     
 
     async def on_step(self, iteration: int):
@@ -65,74 +85,49 @@ class Bot(sc2.BotAI):
 
         cc = self.units(UnitTypeId.COMMANDCENTER).first
         cc_abilities = await self.get_available_abilities(cc)
-        ravens = self.units(UnitTypeId.RAVEN)
         
-        if ravens.amount == 0:
-            if self.can_afford(UnitTypeId.RAVEN):
-                # 고스트가 하나도 없으면 고스트 훈련
-                actions.append(cc.train(UnitTypeId.RAVEN))
-            if self.die_alert == 2:
-                self.die_alert = 1 # 리콘이 죽었다 => 다른곳에서 써먹을 플래그
+        # 화염차 패트롤 무빙
+        if self.can_afford(UnitTypeId.HELLION) :
+            actions.append(cc.train(UnitTypeId.HELLION))
 
-        elif ravens.amount > 0:
-            raven = ravens.first
+        hellions = self.units.filter(
+            lambda unit: unit.type_id is UnitTypeId.HELLION
+        )
+
+        threaten = self.known_enemy_units.filter(
+            lambda unit: not unit.is_flying
+        )
+
+        for unit in hellions:
+            target = None
+            if threaten.exists:
+                target = threaten.closest_to(unit)
             
-            if self.die_alert == 0 or self.die_alert == 1:
-                self.die_alert = 2 # 리콘 현재 존재함
-            
-            if self.is_ghost == 0:
-                if self.a==0 :
-                    actions.append(raven.move(self.patrol_pos[0]))
-                    if raven.distance_to(self.patrol_pos[0]) < 1:
-                        actions.append(raven.move(self.patrol_pos[1]))
-                        self.a=5
-                elif self.a==1:
-                    if raven.distance_to(self.patrol_pos[1]) < 1:
-                        actions.append(raven.move(self.patrol_pos[2]))
-                        self.a=2
-                elif self.a==2:    
-                    if raven.distance_to(self.patrol_pos[2]) < 1:
-                        actions.append(raven.move(self.patrol_pos[3]))
-                        self.a=3
-                elif self.a==3:
-                    if raven.distance_to(self.patrol_pos[3]) < 1:
-                        actions.append(raven.move(self.patrol_pos[0]))
-                        self.a=0
-            
-            threaten = self.known_enemy_units.closer_than(5, raven.position)
-            if threaten.amount > 0:
-                target = threaten.closest_to(raven.position)
-                self.last_pos = target.position
-                print(self.last_pos)
-                unit = threaten(UnitTypeId.GHOST)
+            # 상대방의 좌표를 패트롤 목적지로 찍음
+            # 공격상태를 한번 감지하면 바로 상대방과 나의 상대좌표를 계산 후 뒤로 물러나기
+            # 일정 사거리 이상 물러나면 다시 목적지로 찍기
+            # 뒤로 물러나다가 closet가 다른적으로 바뀌게 둘지? 아니면 한번 그 유닛이 죽을때까지 그 유닛만 할지?
+            if target is not None:
                 
-                if unit.amount > 0:
-                    print(unit.amount)
-                    self.is_ghost = 1 # 핵 쏘러 옴
-                    target = unit.first
-                    self.last_pos = target.position
-                    print(self.last_pos)
+                position = None
 
-                if raven.distance_to(self.front) > 2 or self.is_ghost: #정면방향이 아니거나, 고스트가 있을경우만 공격
-                    self.enemy_alert=1 # 에너미 존재
-                    self.last_pos = target.position
-                    pos = raven.position.towards(target.position, 5)
-                    pos = await self.find_placement(UnitTypeId.AUTOTURRET, pos)
-                    actions.append(raven(AbilityId.BUILDAUTOTURRET_AUTOTURRET, pos))
+                if unit.is_attacking or unit.distance_to(target) <= 4:
+                    # 공격 했거나 가까워지면 무조건 물러나기
+                    position = self.runaway(unit.position, target.position,10)
+                    print(math.sqrt((unit.position.x-position.x)**2+(unit.position.y-position.y)**2))
+                    actions.append(unit.move(position))
 
-            elif threaten.amount == 0 and self.enemy_alert==1: #평범하게 적들 해치운 경우
-                self.enemy_alert=0 # 에너미 해치움
-                raven.distance_to(self.patrol_pos[self.a])
-                if self.is_ghost == 1:
-                    print("유령해치움")
-                    self.is_ghost == 0
-                else :
-                    print("에너미해치움")
-            elif self.is_ghost: # 정면방향 고스트였을경우
-                unit = threaten(UnitTypeId.GHOST)
-                if unit.amount == 0:
-                    self.is_ghost = 0
-                    self.enemy_alert=0
-                    raven.distance_to(self.patrol_pos[self.a])
-            
+                elif unit.distance_to(target) > 9:
+                    # 7 이상 벌어지면 다시 공격하러 가기
+                    print("다시가자")
+                    actions.append(unit.patrol(target.position))
+
+
+            else:
+
+                if unit.distance_to(self.enemy_start_locations[0]) < 10:
+                    actions.append(unit.attack(self.enemy_start_locations[0]))
+                else:
+                    actions.append(unit.move(Point2((75,30))))
+
         await self.do_actions(actions)
