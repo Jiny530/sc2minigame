@@ -1297,14 +1297,11 @@ class Bot(sc2.BotAI):
                 pass 
             # 탱크 또는 전투순양함 존버
             elif self.vespene > 100 and self.tank_units.amount < 8:
-                print("탱크")
                 next_unit = UnitTypeId.SIEGETANK
             #초반(200초 이내)에는 마린 천천히
             elif self.time < 200 and self.minerals >= 200:
-                print("마린")
                 next_unit = UnitTypeId.MARINE
             else:
-                print("어디에도 안걸림")
                 next_unit = None
 
         

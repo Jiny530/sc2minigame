@@ -36,7 +36,6 @@ from random import *
 
 #from .consts import CommandType, NukeStrategy
 
-nest_asyncio.apply()
 
 """
 class Model(nn.Module):
@@ -92,10 +91,6 @@ class NukeManager(object):
             self.middle = 72.5
         else:
             self.middle = 52.5
-
-    def runaway(self, actions):
-        actions.append(self.ghost.move(self.bot.start_location))
-        pass # 아직 어떻게할지 모름\
 
     async def step(self):
         actions = list() # 이번 step에 실행할 액션 목록
@@ -480,16 +475,27 @@ class ReconManager(object):
                                 else:        
                                     self.recon(unit,actions)
                     else:
-                    # 사령부 주위 핵이 아니면
-                        if self.bot.combat_units.exists and self.bot.combat_units.first.distance_to(self.bot.nuke_pos) < 20:
+                        run_alert = 0
+                        # 사령부 주위 핵이 아니면
+                        for u in self.bot.combat_units:
+                            if u.distance_to(self.bot.nuke_pos) < 10:
+                                run_alert = 1
+                        if self.bot.combat_units.exists and run_alert:
                             target = self.bot.known_enemy_units.filter(
                                 lambda u: u.type_id is UnitTypeId.GHOST and u.distance_to(self.bot.nuke_pos) < 12
                             )
                             if target.exists:
-                                await self.setAutoturret(unit,target.closest_to(unit),actions,unit_abilities)
+                                if unit.energy + (11 - self.bot.time + self.bot.nuke_time) >= 50 and unit.distance_to(target) - 4*(11 - self.bot.time + self.bot.nuke_time) < 7 :
+                                    await self.setAutoturret(unit,target.closest_to(unit),actions,unit_abilities)
+                                else:
+                                    self.bot.run_alert = 1
                             else :
-                                self.patrol(self.bot.nuke_pos,None)
-                                self.recon(unit,actions)
+                                if self.bot.time - self.bot.nuke_time < 10:
+                                    self.patrol(self.bot.nuke_pos,None)
+                                    self.recon(unit,actions)
+                                else :
+                                    self.bot.run_alert = 1
+                                    actions.append(unit.move(self.bot.runaway(unit.position,self.nuke_pos,13)))
 
                 elif self.bot.combat_units.exists :
                     combat_center = self.bot.units.tags_in(self.bot.combatArray).center
@@ -535,6 +541,11 @@ class ReconManager(object):
                             cloak = cloak.closest_to(unit)
                             if unit.energy > 45:
                                 await self.setAutoturret(unit,cloak,actions,unit_abilities)
+                else:
+                    if self.bot.start_location.x < 40:
+                        actions.append(unit.move(Point2((29, 30))))
+                    else:
+                        actions.append(unit.move(Point2((98, 30))))
             
         return actions
 
@@ -605,7 +616,7 @@ class CombatManager(object):
             self.position_list.append(Point2((position[i][0], position[i][1])))
 
 
-    def defense_circle(self, unit):
+    def defense_circle(self, unit, center):
         """
         해병의 대기 위치를 계산
         """
@@ -624,12 +635,12 @@ class CombatManager(object):
                 if unit.tag == marine: 
                     if t == 0: 
                         r = 20
-                        x = self.marine_center.x + r*math.cos(math.radians(theta[t]))
-                        y = self.marine_center.y + r*math.sin(math.radians(theta[t]))
+                        x = center.x + r*math.cos(math.radians(theta[t]))
+                        y = center.y + r*math.sin(math.radians(theta[t]))
                     else:
                         r = t / 13 + 20
-                        x = self.marine_center.x + r*math.cos(math.radians(theta[t%13]))
-                        y = self.marine_center.y + r*math.sin(math.radians(theta[t%13]))
+                        x = center.x + r*math.cos(math.radians(theta[t%13]))
+                        y = center.y + r*math.sin(math.radians(theta[t%13]))
                     break
                 t += 1
         if unit.type_id is UnitTypeId.HELLION:
@@ -637,12 +648,12 @@ class CombatManager(object):
                 if unit.tag == hel: 
                     if t == 0: 
                         r = 23
-                        x = self.marine_center.x + r*math.cos(math.radians(theta[t]))
-                        y = self.marine_center.y + r*math.sin(math.radians(theta[t]))
+                        x = center.x + r*math.cos(math.radians(theta[t]))
+                        y = center.y + r*math.sin(math.radians(theta[t]))
                     else:
                         r = t / 13 + 23
-                        x = self.marine_center.x + r*math.cos(math.radians(theta[t%13]))
-                        y = self.marine_center.y + r*math.sin(math.radians(theta[t%13]))
+                        x = center.x + r*math.cos(math.radians(theta[t%13]))
+                        y = center.y + r*math.sin(math.radians(theta[t%13]))
                     break
                 t += 1
 
@@ -821,8 +832,8 @@ class CombatManager(object):
         for unit in self.bot.units.not_structure:  # 건물이 아닌 유닛만 선택
             if unit in self.bot.combat_units:
                 ##-----타겟 설정-----
-                enemy_unit = self.bot.enemy_cc
-
+                enemy_unit = None
+                threaten = self.bot.known_enemy_units.closer_than(10, unit.position) 
                 #공중 공격 가능이면 공중 우선 타겟팅(고스트 최우선-핵방어)
                 if unit.type_id in (UnitTypeId.BATTLECRUISER, UnitTypeId.VIKINGFIGHTER, UnitTypeId.MARINE):
                     threaten = self.bot.known_enemy_units.closer_than(10, unit.position) 
@@ -837,41 +848,48 @@ class CombatManager(object):
                     )
                     ##-----타겟 조정-----
                     if threaten.exists :
-                        if enemy_ghost.exists:
+                        if enemy_ghost.exists and enemy_ghost.closest_to(unit.position).can_be_attacked :
                             enemy_unit = enemy_ghost.closest_to(unit.position)
-                        elif enemy_bansee.exists:
+                        elif enemy_bansee.exists and enemy_bansee.closest_to(unit.position).can_be_attacked:
                             enemy_unit = enemy_bansee.closest_to(unit.position)
-                        elif enemy_raven.exists:
-                            enemy_unit = enemy_raven.closest_to(unit.position)
                         elif flying_buff.exists:
                             enemy_unit = flying_buff.closest_to(unit)
                         elif flying_target.exists:
                             enemy_unit = flying_target.closest_to(unit)
                         else:
                             enemy_unit = threaten.closest_to(unit.position)
+
                 
                 #지상만 공격 가능이면 공중은 타겟팅 안함
-                if unit.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED, UnitTypeId.VIKINGASSAULT):
+                if unit.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED, UnitTypeId.VIKINGASSAULT, UnitTypeId.HELLION):
                     if self.bot.known_enemy_units.exists:
                         enemy_unit = self.bot.known_enemy_units.closest_to(unit)  # 가장 가까운 적 유닛
                         walking_target = self.bot.known_enemy_units.filter(
                             lambda u: not u.is_flying
                         )
                         enemy_ghost = self.bot.known_enemy_units(UnitTypeId.GHOST)
-                        if enemy_ghost.exists:
+                        if enemy_ghost.exists and enemy_ghost.closest_to(unit.position).can_be_attacked:
                             enemy_unit = enemy_ghost.closest_to(unit.position)
                         elif walking_target.exists:
                             enemy_unit = walking_target.closest_to(unit)
 
-                # 적 사령부와 가장 가까운 적 유닛중 더 가까운 것을 목표로 설정
-                if unit.distance_to(enemy_cc) < unit.distance_to(enemy_unit):
+                if enemy_unit is None and unit.distance_to(enemy_cc) < 15:
                     target = enemy_cc
                 else:
                     target = enemy_unit
-
+                ravens = self.bot.units(UnitTypeId.RAVEN)
+                
                 #모든 유닛이 근처에 핵 발견했으면 뒤로 도망가는게 최우선
                 if self.bot.nuke_alert and unit.distance_to(self.bot.nuke_pos) < 11: 
-                    self.nuke_action(unit, actions)
+                    enemy_ghost = self.bot.known_enemy_units(UnitTypeId.GHOST)
+                    if ravens.exists and self.bot.run_alert == 0:
+                        if self.bot.time - self.bot.nuke_time > 11 :
+                            actions.append(unit.move(self.bot.runaway(unit.position,self.nuke_pos,13)))
+                        elif enemy_ghost.exists and enemy_ghost.closest_to(unit).can_be_attacked:
+                            actions.append(unit.attack(enemy_ghost.closest_to(unit)))
+                        #TODO : 나중에 더 세세하게 생각해보기
+                    else:
+                        actions.append(unit.move(self.bot.runaway(unit.position,self.nuke_pos,13)))
 
                 ##-----MARINE-----
                 elif unit.type_id is UnitTypeId.MARINE:
@@ -882,7 +900,7 @@ class CombatManager(object):
                     ##-----명령-----
                     #DEFENSE
                     if self.bot.combat_strategy == 0: 
-                        target_pos = self.defense_circle(unit) #자신의 대기위치 계산
+                        target_pos = self.defense_circle(unit,self.marine_center) #자신의 대기위치 계산
                         if self.distance(unit.position, target_pos) > 0:
                             actions.append(unit.move(target_pos))
                         #else: actions.append(unit.hold_position)
@@ -892,26 +910,46 @@ class CombatManager(object):
 
                     #OFFENSE
                     else: 
-                        #무빙샷 추가해야(위에도)
-                        actions.append(unit.attack(target))
+                        actions.append(unit.move(self.defense_circle(unit,self.bot.enemy_cc)))
 
                     ##-----스킬-----
-                    if not unit.has_buff(BuffId.STIMPACK) and unit.distance_to(target) < 15 and threaten.amount > 5:
-                            # 유닛과 목표의 거리가 15이하일 경우 스팀팩 사용
-                            # '''not unit.has_buff(BuffId.STIMPACK) and''' 여기 주석했음
-                        if unit.health_percentage > 0.5:
-                            # 현재 스팀팩 사용중이 아니며, 체력이 50% 이상
-                            if self.bot.time - self.evoked.get((unit.tag, AbilityId.EFFECT_STIM), 0) > 1.0:
-                                # 1초 이전에 스팀팩을 사용한 적이 없음
-                                actions.append(unit(AbilityId.EFFECT_STIM))
-                                self.evoked[(unit.tag, AbilityId.EFFECT_STIM)] = self.bot.time
+                    if target is not None:
+                        if not unit.has_buff(BuffId.STIMPACK) and unit.distance_to(target) < 15 and threaten.amount > 5:
+                                # 유닛과 목표의 거리가 15이하일 경우 스팀팩 사용
+                                # '''not unit.has_buff(BuffId.STIMPACK) and''' 여기 주석했음
+                            if unit.health_percentage > 0.5:
+                                # 현재 스팀팩 사용중이 아니며, 체력이 50% 이상
+                                if self.bot.time - self.evoked.get((unit.tag, AbilityId.EFFECT_STIM), 0) > 1.0:
+                                    # 1초 이전에 스팀팩을 사용한 적이 없음
+                                    actions.append(unit(AbilityId.EFFECT_STIM))
+                                    self.evoked[(unit.tag, AbilityId.EFFECT_STIM)] = self.bot.time
 
                 ##-----HELLION-----
                 elif unit.type_id is UnitTypeId.HELLION:
-                    target_pos = self.defense_circle(unit) #자신의 대기위치 계산
-                    if self.distance(unit.position, target_pos) > 0:
-                        actions.append(unit.move(target_pos))
-                  
+                    if self.bot.combat_strategy == 0: 
+                        target_pos = self.defense_circle(unit,self.marine_center) #자신의 대기위치 계산
+                        if self.distance(unit.position, target_pos) > 0:
+                            actions.append(unit.move(target_pos))
+                        
+                    else:
+                        actions.append(unit.move(self.defense_circle(unit,self.bot.enemy_cc)))
+                    
+                    if target is not None:
+                        
+                        position = None
+                        if unit.is_attacking or unit.distance_to(target) <= 4:
+                            # 공격 했거나 가까워지면 무조건 물러나기
+                            position = self.bot.runaway(unit.position, target.position,10)
+                            actions.append(unit.move(position))
+                        elif unit.distance_to(target) > 9:
+                            # 7 이상 벌어지면 다시 공격하러 가기
+                            actions.append(unit.patrol(target.position))
+                    
+                    elif self.bot.cloak_units.exists:
+                        c = self.bot.cloak_units.closer_than(7,unit)
+                        if c.exists:
+                            actions.append(unit.move(self.bot.runaway(unit.position,c.position,10)))
+                    
                 ##-----TANK-----
                 elif unit.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
                     self.moving(unit, actions, target)
@@ -1198,6 +1236,7 @@ class Bot(sc2.BotAI):
         self.nuke_pos = None
         self.nuketime_flag = 0
         self.is_nuke = 0
+        self.run_alert = 0
         #self.is_raven = 0
         
     def on_start(self):
@@ -1229,6 +1268,32 @@ class Bot(sc2.BotAI):
 
         # Learner에 join
         self.game_id = f"{self.host_name}_{time.time()}"
+
+    def runaway(self, u, t, dis):
+        # 상대위치와 내 위치로 직선방정식 구하기
+        # 상대위치에서 내 위치 방향으로 7 이상 떨어지게 하기 (상대와 내가 5거리, 그러면 내 점과 2 떨어진 점 중 직선위에 있는, 상대점과 7 떨어진 점)
+ 
+        if u.x == t.x :
+            if u.y < t.y:
+                position = Point2((u.x,t.y-dis))
+            else:
+                position = Point2((u.x,t.y + dis))
+        else:
+            a = (t.y-u.y)/(t.x-u.x) # 기울기
+            d = dis - math.sqrt((u.x-t.x)**2+(u.y-t.y)**2)
+            
+            p = d*d/(a**2+1)
+            q = math.sqrt(p)
+
+            if u.x < t.x : #유닛이 왼쪽이면 왼쪽으로 도망
+                x = u.x - q
+            else:
+                x = u.x + q
+            y = a*(x - u.x) + u.y
+            position = Point2((x,y))
+
+ 
+        return position
         
 
     async def on_step(self, iteration: int):
@@ -1302,10 +1367,12 @@ class Bot(sc2.BotAI):
         if self.nuke_alert and self.nuketime_flag == 1:
             self.nuketime_flag = 2
 
-        if self.nuke_alert and self.time - self.nuke_time >= 14 or self.is_nuke:
+        # 핵이 완전히 사라짐
+        if self.time - self.nuke_time >= 15 or self.is_nuke:
             self.nuke_alert = False
             self.command_nuke = False
             self.nuketime_flag = 0
+            self.run_alert = 0
 
         actions += await self.train_action() #생산
         self.assign_manager.assign()
