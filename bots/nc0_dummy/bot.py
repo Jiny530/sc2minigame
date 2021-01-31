@@ -46,7 +46,7 @@ class Bot(sc2.BotAI):
 
         ccs = self.units(UnitTypeId.COMMANDCENTER)  # 전체 유닛에서 사령부 검색
         cc = ccs.idle
-
+        '''
         if self.alert(Alert.NuclearLaunchDetected):
             print("핵온다")
         if cc.exists:
@@ -64,7 +64,7 @@ class Bot(sc2.BotAI):
                 actions.append(cc.train(UnitTypeId.MARINE))
 
 
-            '''
+            
             ghosts = self.units(UnitTypeId.GHOST)  # 해병 검색
             if ghosts.amount == 0:
                 actions.append(cc.train(UnitTypeId.GHOST))
