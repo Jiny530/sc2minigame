@@ -626,9 +626,11 @@ class CombatManager(object):
         y = 0
 
         if self.bot.start_location.x < 40: #빨강팀
-            theta = [150, 155, 160, 165, 170, 175, 180, 185, 190, 195, 200, 205, 210]
+            #theta = [150, 155, 160, 165, 170, 175, 180, 185, 190, 195, 200, 205, 210]
+            theta = [180, 175, 185, 170, 190, 165, 195, 160, 200, 155, 205, 150, 210]
         else: #파랑팀
-            theta = [30, 25, 20, 15, 10, 5, 0, 355, 350, 345, 340, 335, 330]
+            #theta = [30, 25, 20, 15, 10, 5, 0, 355, 350, 345, 340, 335, 330]
+            theta = [0, 5, 355, 10, 350, 15, 345, 20, 340, 25, 335, 30, 330]
 
         if unit.type_id is UnitTypeId.MARINE:
             for marine in self.bot.marineArray:
@@ -833,7 +835,7 @@ class CombatManager(object):
             if unit in self.bot.combat_units:
                 ##-----타겟 설정-----
                 enemy_unit = None
-                threaten = self.bot.known_enemy_units.closer_than(10, unit.position) 
+                threaten = self.bot.known_enemy_units.closer_than(15, unit.position) 
                 #공중 공격 가능이면 공중 우선 타겟팅(고스트 최우선-핵방어)
                 if unit.type_id in (UnitTypeId.BATTLECRUISER, UnitTypeId.VIKINGFIGHTER, UnitTypeId.MARINE):
                     threaten = self.bot.known_enemy_units.closer_than(10, unit.position) 
@@ -884,12 +886,12 @@ class CombatManager(object):
                     enemy_ghost = self.bot.known_enemy_units(UnitTypeId.GHOST)
                     if ravens.exists and self.bot.run_alert == 0:
                         if self.bot.time - self.bot.nuke_time > 11 :
-                            actions.append(unit.move(self.bot.runaway(unit.position,self.nuke_pos,13)))
+                            actions.append(unit.move(self.bot.runaway(unit.position,self.bot.nuke_pos,13)))
                         elif enemy_ghost.exists and enemy_ghost.closest_to(unit).can_be_attacked:
                             actions.append(unit.attack(enemy_ghost.closest_to(unit)))
                         #TODO : 나중에 더 세세하게 생각해보기
                     else:
-                        actions.append(unit.move(self.bot.runaway(unit.position,self.nuke_pos,13)))
+                        actions.append(unit.move(self.bot.runaway(unit.position,self.bot.nuke_pos,13)))
 
                 ##-----MARINE-----
                 elif unit.type_id is UnitTypeId.MARINE:
@@ -899,7 +901,7 @@ class CombatManager(object):
 
                     ##-----명령-----
                     #DEFENSE
-                    if self.bot.combat_strategy == 0: 
+                    if self.bot.combat_strategy == 0 : 
                         target_pos = self.defense_circle(unit,self.marine_center) #자신의 대기위치 계산
                         if self.distance(unit.position, target_pos) > 0:
                             actions.append(unit.move(target_pos))
@@ -926,29 +928,64 @@ class CombatManager(object):
 
                 ##-----HELLION-----
                 elif unit.type_id is UnitTypeId.HELLION:
-                    if self.bot.combat_strategy == 0: 
-                        target_pos = self.defense_circle(unit,self.marine_center) #자신의 대기위치 계산
-                        if self.distance(unit.position, target_pos) > 0:
-                            actions.append(unit.move(target_pos))
-                        
-                    else:
-                        actions.append(unit.move(self.defense_circle(unit,self.bot.enemy_cc)))
-                    
+
                     if target is not None:
-                        
                         position = None
-                        if unit.is_attacking or unit.distance_to(target) <= 4:
-                            # 공격 했거나 가까워지면 무조건 물러나기
+
+                        if threaten.exists:
+                            for u in threaten:
+                                if unit.weapon_cooldown == 0:
+                                    actions.append(unit.attack(target))
+                                elif unit.weapon_cooldown < 18:
+                                    if u.target_in_range(unit, 0.5):
+                                        actions.append(unit.move(self.bot.runaway(unit.position, u.position,10)))
+                                    else:
+                                        actions.append(unit.attack(target))
+                                else:
+                                    if u.target_in_range(unit, 1):
+                                        actions.append(unit.move(self.bot.runaway(unit.position, u.position,10)))
+                                    else:
+                                        actions.append(unit.attack(target))
+                        
+                        else:
+                            if unit.weapon_cooldown == 0:
+                                actions.append(unit.attack(target))
+                            elif unit.weapon_cooldown < 18:
+                                if target.target_in_range(unit, 0.5):
+                                    actions.append(unit.move(self.bot.runaway(unit.position, target.position,10)))
+                                else:
+                                    actions.append(unit.attack(target))
+                            else:
+                                if u.target_in_range(unit, 1):
+                                    actions.append(unit.move(self.bot.runaway(unit.position, u.position,10)))
+                                else:
+                                    actions.append(unit.attack(target))
+
+                        '''
+                        if unit.distance_to(target) <=4:
+                            position = self.bot.run
+                            away(unit.position, target.position,10)
+                            actions.append(unit.move(position))
+                        el
+                        elif unit.weapon_cooldown < 18:
+
                             position = self.bot.runaway(unit.position, target.position,10)
                             actions.append(unit.move(position))
-                        elif unit.distance_to(target) > 9:
-                            # 7 이상 벌어지면 다시 공격하러 가기
-                            actions.append(unit.patrol(target.position))
-                    
+                    '''
                     elif self.bot.cloak_units.exists:
                         c = self.bot.cloak_units.closer_than(7,unit)
                         if c.exists:
                             actions.append(unit.move(self.bot.runaway(unit.position,c.position,10)))
+
+                    elif self.bot.combat_strategy == 0 : 
+                        target_pos = self.defense_circle(unit,self.marine_center) #자신의 대기위치 계산
+                        if self.distance(unit.position, target_pos) > 0:
+                            actions.append(unit.move(target_pos))
+                        
+                    elif self.bot.combat_strategy == 1 :
+                        actions.append(unit.move(self.defense_circle(unit,self.bot.enemy_cc)))
+                    
+                    
                     
                 ##-----TANK-----
                 elif unit.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
