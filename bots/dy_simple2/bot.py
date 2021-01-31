@@ -578,7 +578,7 @@ class CombatManager(object):
         self.move_check = 0 #이동 체크
         #self.target_pos = self.bot.start_location #해병 이동 위치의 기준
         #self.position_list = list() #탱크 유닛들의 목표 포지션 리스트
-        #self.marine_call = 1 #탱크가 출발 후 제자리에 도착하면 해병을 부름 0이면 부르기
+        self.marine_call = 1 #탱크가 출발 후 제자리에 도착하면 해병을 부름 0이면 부르기
         #self.now_marine = 0 #combat중 해병 수 기록(현재)
         #self.before_marine = 0 #combat중 해병 수 기록(과거)
         #self.move_time = self.bot.time #무브체크가 바뀌는 타이밍 기록
@@ -651,7 +651,7 @@ class CombatManager(object):
             for marine in self.bot.marineArray:
                 if unit.tag == marine: 
                     if t == 0: 
-                        r = 23
+                        r = 22
                         x = center.x + r*math.cos(math.radians(theta[t]))
                         y = center.y + r*math.sin(math.radians(theta[t]))
                     else:
@@ -665,7 +665,7 @@ class CombatManager(object):
             for hel in self.bot.helArray:
                 if unit.tag == hel: 
                     if t == 0: 
-                        r = 22
+                        r = 24
                         x = center.x + r*math.cos(math.radians(theta[t]))
                         y = center.y + r*math.sin(math.radians(theta[t]))
                     else:
@@ -684,9 +684,9 @@ class CombatManager(object):
                         x = center.x + r*math.cos(math.radians(theta[t]))
                         y = center.y + r*math.sin(math.radians(theta[t]))
                     else:
-                        r = t / 13 + 20
-                        x = center.x + r*math.cos(math.radians(theta[t%13]))
-                        y = center.y + r*math.sin(math.radians(theta[t%13]))
+                        r = t / 6 + 20
+                        x = center.x + r*math.cos(math.radians(theta[t%13 * 2]))
+                        y = center.y + r*math.sin(math.radians(theta[t%13 * 2]))
                     break
                 t += 1
         #바이킹
@@ -699,8 +699,8 @@ class CombatManager(object):
                         y = center.y + r*math.sin(math.radians(theta[t]))
                     else:
                         r = t / 13 + 23
-                        x = center.x + r*math.cos(math.radians(theta[t%26]))
-                        y = center.y + r*math.sin(math.radians(theta[t%26]))
+                        x = center.x + r*math.cos(math.radians(theta[t%13]))
+                        y = center.y + r*math.sin(math.radians(theta[t%13]))
                     break
                 t += 1
         target_pos = (Point2((x, y)))
@@ -1054,6 +1054,7 @@ class CombatManager(object):
                     else:
                         if self.distance(unit.position, target_pos) > 0:
                             actions.append(unit.move(target_pos))
+                            
 
                     
                     
@@ -1069,6 +1070,7 @@ class CombatManager(object):
                         if self.distance(unit.position, target_pos) < 1: #도착
                             if unit.type_id is UnitTypeId.SIEGETANK:
                                 actions.append(unit(AbilityId.SIEGEMODE_SIEGEMODE)) #변신
+                                #if self.marine_call == 0: self.marine_call = 1 #하나라도 변신하면 해병 와라
                         else:
                             if unit.type_id is UnitTypeId.SIEGETANKSIEGED: 
                                 actions.append(unit(AbilityId.UNSIEGE_UNSIEGE)) #변신 풀기
@@ -1364,6 +1366,7 @@ class Bot(sc2.BotAI):
         self.nuke_reward = 0 
         self.nuke_strategy= 2
         self.combat_strategy = 0 #0:Defense, 1: WAIT, 2:Offense(무브체크 대신)
+        self.marine_gone = 0 #마린 보내서 적 확인<-0:아직 안보냄, 1:보내야함 2: 보냄
 
         # 정찰부대에서 사용하는 플래그
         self.threaten=list()
@@ -1547,16 +1550,16 @@ class Bot(sc2.BotAI):
         )
         
         #전체 전진 기준
-        if self.combat_strategy == 0 and self.tank_units.amount >=3 and self.units(UnitTypeId.VIKINGFIGHTER).amount >=4 and self.combat_units.amount > 60:
+        if self.combat_strategy == 0 and self.tank_units.amount >=3 and self.units(UnitTypeId.VIKINGFIGHTER).amount >=3 and self.combat_units.amount > 60:
             self.combat_strategy = 1
         if self.combat_strategy == 1 and self.tank_units.amount + self.units(UnitTypeId.VIKINGFIGHTER).amount >= 15 and self.combat_units.amount > 60:
             self.combat_strategy = 2
         #전체 후퇴 기준
         if self.combat_strategy == 1 and self.known_enemy_units(UnitTypeId.BATTLECRUISER).exists and self.known_enemy_units(UnitTypeId.BATTLECRUISER).closest_to(self.cc).target_in_range(self.cc, 0.5) and self.fighting == 0:
-            self.combat_strategy == 3
-        if self.combat_strategy >= 1 and (self.tank_units.amount + self.units(UnitTypeId.VIKINGFIGHTER).amount < 5 or self.combat_units.amount < 10):
             self.combat_strategy == 0
-        if self.combat_strategy == 2 and (self.tank_units.amount + self.units(UnitTypeId.VIKINGFIGHTER).amount < 7 or self.combat_units.amount < 20):
+        if self.combat_strategy >= 1 and (self.tank_units.amount + self.units(UnitTypeId.VIKINGFIGHTER).amount < 5 or self.marine_units.amount < 10):
+            self.combat_strategy == 0
+        if self.combat_strategy == 2 and (self.tank_units.amount + self.units(UnitTypeId.VIKINGFIGHTER).amount < 7 or self.marine_units.amount < 20):
             self.combat_strategy == 1
 
 
@@ -1589,7 +1592,7 @@ class Bot(sc2.BotAI):
             self.ghost_ready = False
 
         #은폐 또는 핵 감지했을 떄 레이븐 없으면 레이븐 먼저
-        if (self.nuke_alert and self.command_nuke and ravens.exists and ravens.closest_to(self.nuke_pos).distance_to(self.nuke_pos) >= (10 - self.time + self.nuke_time)*4 ) or (self.cloak_units.amount > 0 and not ravens.exists) :
+        if (self.nuke_alert and self.command_nuke and ravens.exists and ravens.closest_to(self.nuke_pos).distance_to(self.nuke_pos) >= (10 - self.time + self.nuke_time)*4 ) or (self.cloak_units.amount > 0 and not ravens.exists) or self.known_enemy_units(UnitTypeId.BATTLECRUISER).exists :
             # 시간넉넉하면 밤까마귀 생성해서 막기
             # train_action에서 플래그 보고 자원 아껴야함
                 next_unit = UnitTypeId.RAVEN
@@ -1605,15 +1608,27 @@ class Bot(sc2.BotAI):
                 #밤까마귀도 있는데 은폐유닛이 남아있어->바이킹
                 if self.units(UnitTypeId.RAVEN).exists and self.cloak_units.exists and self.vespene > 50:
                     next_unit = UnitTypeId.VIKINGFIGHTER
-                #베스핀 남으면 우선 탱크 3대까지(베스핀 여유 두어야)
+                #적이 5명 넘으면 탱크 긴급투입
                 elif self.known_enemy_units.amount >= 5 and self.tank_units.amount < 4:
                     next_unit = UnitTypeId.SIEGETANK
+                #마린 보내 정찰
+                elif self.marine_gone == 1:
+                    next_unit = UnitTypeId.MARINE
+                    self.marine_gone = 2
+                #베스핀 남으면 우선 탱크 3대까지(베스핀 여유 두어야)
                 elif self.vespene > 250 and self.tank_units.amount <= self.units(UnitTypeId.VIKINGFIGHTER).amount and self.tank_units.amount < 4:
                     next_unit = UnitTypeId.SIEGETANK
                 #바이킹은 4대까지(베스핀 여유두고)
-                elif self.vespene > 250 and self.tank_units.amount >= self.units(UnitTypeId.VIKINGFIGHTER).amount and self.tank_units.amount < 5:
+                elif self.vespene > 250 and self.tank_units.amount >= self.units(UnitTypeId.VIKINGFIGHTER).amount and self.units(UnitTypeId.VIKINGFIGHTER).amount < 2:
                     next_unit = UnitTypeId.VIKINGFIGHTER
-                #바이킹 4, 탱크 3 다 완성되면 탱크와 바이킹 수 똑같이 생산되도록
+                    if self.marine_gone == 0: self.marine_gone = 1
+                #바이킹은 4대까지(베스핀 여유두고)
+                elif self.vespene > 250 and self.tank_units.amount >= self.units(UnitTypeId.VIKINGFIGHTER).amount and self.units(UnitTypeId.VIKINGFIGHTER).amount < 4:
+                    next_unit = UnitTypeId.VIKINGFIGHTER
+                #다 충분한데 밤까마귀가 없으면 만들기
+                elif self.units(UnitTypeId.RAVEN).amount < 1:
+                    next_unit = UnitTypeId.RAVEN
+                #바이킹 3, 탱크 3 다 완성되면 탱크와 바이킹 수 똑같이 생산되도록
                 elif self.vespene > 250 and self.tank_units.amount <= self.units(UnitTypeId.VIKINGFIGHTER).amount:
                     next_unit = UnitTypeId.SIEGETANK
                 elif self.vespene > 250 and self.tank_units.amount >= self.units(UnitTypeId.VIKINGFIGHTER).amount:
@@ -1638,14 +1653,18 @@ class Bot(sc2.BotAI):
                 else:
                     #적이 지상전 타입이면
                     if self.enemy_is_flying == False:
-                        if self.vespene > 100: #베스핀 되는대로 탱크
+                        if self.vespene > 150 and self.units(UnitTypeId.RAVEN).amount < 4: 
+                            next_unit = UnitTypeId.RAVEN
+                        elif self.vespene > 100 : #베스핀 되는대로 탱크
                             next_unit = UnitTypeId.SIEGETANK
                         elif self.units(UnitTypeId.HELLION).amount < self.units(UnitTypeId.MARINE).amount / 2:
                             next_unit = UnitTypeId.HELLION
                         else: next_unit = UnitTypeId.MARINE
                     #적이 공중전 타입이면
                     else:
-                        if self.vespene > 50: #베스핀 되는대로 바이킹
+                        if self.vespene > 150 and self.units(UnitTypeId.RAVEN).amount < 6: 
+                            next_unit = UnitTypeId.RAVEN
+                        elif self.vespene > 50: #베스핀 되는대로 바이킹
                             next_unit = UnitTypeId.VIKINGFIGHTER
                         elif self.units(UnitTypeId.HELLION).amount < self.units(UnitTypeId.MARINE).amount / 2:
                             next_unit = UnitTypeId.HELLION
