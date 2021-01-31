@@ -458,7 +458,6 @@ class ReconManager(object):
                            
                             elif not target.exists : #타겟이 범위 안에 없으면 찾기
                                 self.patrol(self.bot.nuke_pos,None)
-                                print("타겟없어 패트롤해")
                                 if enemy_ghost.exists:
                                     target = enemy_ghost.filter(
                                         lambda u: u.distance_to(self.bot.nuke_pos) < 12
@@ -469,7 +468,6 @@ class ReconManager(object):
                                     else: # 유령은 있는데 핵은 아직 안쐈다?
                                         pass
                                 if not target.exists:
-                                    print("패트롤한다ㅏㅏㅏ")
                                     self.recon(unit,actions)
 
                         elif unit.energy + (11 - self.bot.time + self.bot.nuke_time) >= 50:
@@ -1004,18 +1002,19 @@ class CombatManager(object):
                     if unit.type_id == UnitTypeId.HELLION:
                         cooldown = 18
                         closer = self.bot.known_enemy_units.filter(
-                            lambda unit: unit.can_attack_ground and unit.target_in_range(unit,0.5)
+                            lambda u: u.can_attack_ground and u.target_in_range(unit,0.5)
                         )
                         further = self.bot.known_enemy_units.filter(
-                            lambda unit: unit.can_attack_ground and unit.target_in_range(unit,1)
+                            lambda u: u.can_attack_ground and u.target_in_range(unit,1)
                         )
+                    # 바이킹이 피할 적
                     else :
                         cooldown = 14
                         closer = self.bot.known_enemy_units.filter(
-                            lambda unit: unit.can_attack_air and unit.target_in_range(unit,0.5)
+                            lambda u: u.can_attack_air and u.target_in_range(unit,0.5)
                         )
                         further = self.bot.known_enemy_units.filter(
-                            lambda unit: unit.can_attack_air and unit.target_in_range(unit,1)
+                            lambda u: u.can_attack_air and u.target_in_range(unit,1)
                         )
 
                     if target is not None:
