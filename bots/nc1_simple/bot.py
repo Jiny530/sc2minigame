@@ -62,7 +62,7 @@ class Bot(sc2.BotAI):
                 actions.append(cc.train(UnitTypeId.MARINE))
 
 
-            '''
+            
             ghosts = self.units(UnitTypeId.GHOST)  # 해병 검색
             if ghosts.amount == 0:
                 actions.append(cc.train(UnitTypeId.GHOST))
@@ -76,7 +76,7 @@ class Bot(sc2.BotAI):
                 if AbilityId.TACNUKESTRIKE_NUKECALLDOWN in ghost_abilities : 
                     actions.append(ghost(AbilityId.TACNUKESTRIKE_NUKECALLDOWN, target=self.enemy_start_locations[0]))
                     print("핵쏜다")
-                    '''
+                    
         ccs = self.units(UnitTypeId.COMMANDCENTER)  # 전체 유닛에서 사령부 검색
         ccs = ccs.idle  # 실행중인 명령이 없는 사령부 검색
         if ccs.exists:  # 사령부가 하나이상 존재할 경우
@@ -85,8 +85,8 @@ class Bot(sc2.BotAI):
                 # 해당 유닛 생산 가능하고, 마지막 명령을 발행한지 1초 이상 지났음
                 actions.append(cc.train(self.build_order[0]))  # 첫 번째 유닛 생산 명령 
                 del self.build_order[0]  # 빌드오더에서 첫 번째 유닛 제거
-                self.evoked[(cc.tag, 'train')] = self.time
-
+                self.evoked[(cc.tag, 'train')] = self.time'''
+        '''
         #
         # 해병 명령 생성
         #
@@ -121,7 +121,7 @@ class Bot(sc2.BotAI):
         for medivac in medivacs:
             if wounded_units.exists:
                 wounded_unit = wounded_units.closest_to(medivac)  # 가장 가까운 체력이 100% 이하인 유닛
-                actions.append(medivac(AbilityId.MEDIVACHEAL_HEAL, wounded_unit))  # 유닛 치료 명령
-        '''
+                actions.append(medivac(AbilityId.MEDIVACHEAL_HEAL, wounded_unit))  # 유닛 치료 명령'''
+        
         await self.do_actions(actions)
 
