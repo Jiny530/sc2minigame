@@ -526,9 +526,9 @@ class ReconManager(object):
                         thor = threaten(UnitTypeId.THOR).closest_to(unit)
                         self.position_set(unit,thor.position,11,actions)
                     # 기타 사거리 6인 유닛이 센터에 닿으면
-                    elif flying_threaten.exists and flying_threaten.closest_to(unit).distance_to(combat_center) < 7:
+                    elif flying_threaten.exists and flying_threaten.closest_to(unit).target_in_range(unit,0.5):
                         flying = flying_threaten.closest_to(unit)
-                        self.position_set(unit,flying.position,7,actions)
+                        self.position_set(unit,flying.position,8,actions)
                     else: # 안 닿으면 센터에 있기
                         actions.append(unit.move(combat_center)) 
                     
