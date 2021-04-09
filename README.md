@@ -1,3 +1,3 @@
 # nc_fellowship
 
-- 봇 코드 공유하기
+- AI 공모전 bot 코드 공유용 레파지토리
